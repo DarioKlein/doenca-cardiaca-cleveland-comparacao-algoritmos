@@ -1,12 +1,19 @@
 #!/usr/bin/env Rscript
 
-# Arvores de Decisao para a base Heart Disease (Cleveland) da UCI
+# Naive Bayes para a base Heart Disease (Cleveland) da UCI
 #
-# O script segue o mesmo protocolo do Naive Bayes:
+# O script faz uma avaliacao honesta do pipeline:
 #   1. validacao cruzada estratificada externa 10-fold repetida 5 vezes;
-#   2. ajuste de hiperparametros e limiar somente no treino de cada fold;
-#   3. media +/- DP das mesmas metricas de avaliacao;
-#   4. testes 5x2cv de Dietterich e Alpaydin entre criterios de divisao.
+#   2. em CADA fold externo, seleciona configuracao e limiar apenas nos dados
+#      de treino (CV interna estratificada 5-fold repetida 3 vezes);
+#   3. apresenta media +/- desvio-padrao de Accuracy, Sensitivity,
+#      Specificity, F1, MCC, ROC-AUC e PR-AUC;
+#   4. executa os testes 5x2cv de Dietterich e Alpaydin entre as familias
+#      Gaussian Naive Bayes e Naive Bayes com KDE.
+#
+# A classe positiva e sempre "doenca". A configuracao escolhida maximiza MCC
+# na CV interna; em empate, usa F1 e o limiar mais proximo de 0.5. Isso evita
+# escolher o modelo apenas por accuracy em um problema de diagnostico.
 
 options(stringsAsFactors = FALSE)
 MASTER_SEED <- 20260804L
@@ -16,15 +23,14 @@ FINAL_TUNING_SEED <- MASTER_SEED + 3571L
 DIETTERICH_SEED <- MASTER_SEED + 7919L
 OUTER_FOLDS <- 10L
 OUTER_REPEATS <- 5L
-INNER_FOLDS <- 5L
-INNER_REPEATS <- 3L
 set.seed(MASTER_SEED)
 SCRIPT_START_TIME <- Sys.time()
 
 report_execution_time <- function() {
   elapsed_seconds <- as.numeric(difftime(Sys.time(), SCRIPT_START_TIME, units = "secs"))
   cat(sprintf(
-    "\nTempo total de execucao: %.2f segundos\n", elapsed_seconds
+    "\nTempo total de execucao: %.2f segundos\n",
+    elapsed_seconds
   ))
 }
 
@@ -44,40 +50,33 @@ ensure_package <- function(package) {
   }
 }
 
-ensure_package("rpart")
+ensure_package("naivebayes")
 ensure_package("withr")
-suppressPackageStartupMessages(library(rpart))
-source(file.path("src", "heart_disease_data.R"))
-source(file.path("src", "common_evaluation.R"))
+suppressPackageStartupMessages(library(naivebayes))
 
+source(file.path("src", "heart_disease_data.r"))
+source(file.path("src", "common_evaluation.r"))
 # -----------------------------------------------------------------------------
 # Ajuste, selecao de hiperparametros e limiar
 # -----------------------------------------------------------------------------
 
-fit_decision_tree <- function(training_data, config) {
-  control <- rpart::rpart.control(
-    cp = config$cp,
-    minsplit = as.integer(config$minsplit),
-    maxdepth = as.integer(config$maxdepth),
-    xval = 0L
+fit_naive_bayes <- function(training_data, config) {
+  arguments <- list(
+    x = training_data[, VARIAVEIS_PREDITORAS, drop = FALSE],
+    y = training_data$classe_doenca,
+    laplace = config$laplace,
+    usekernel = config$usekernel
   )
-  rpart::rpart(
-    formula = stats::reformulate(VARIAVEIS_PREDITORAS, response = VARIAVEL_ALVO),
-    data = training_data[, c(VARIAVEIS_PREDITORAS, VARIAVEL_ALVO), drop = FALSE],
-    method = "class",
-    parms = list(split = config$criterio_divisao),
-    control = control
-  )
+  if (isTRUE(config$usekernel)) arguments$adjust <- config$adjust
+  do.call(naivebayes::naive_bayes, arguments)
 }
 
 predict_disease_probability <- function(model, new_data) {
   probability <- predict(
-    model,
-    newdata = new_data[, VARIAVEIS_PREDITORAS, drop = FALSE],
-    type = "prob"
+    model, newdata = new_data[, VARIAVEIS_PREDITORAS, drop = FALSE], type = "prob"
   )
-  if (is.null(dim(probability)) || !(POSITIVE_CLASS %in% colnames(probability))) {
-    stop("A probabilidade da classe positiva nao foi produzida pela arvore.")
+  if (!(POSITIVE_CLASS %in% colnames(probability))) {
+    stop("A probabilidade da classe positiva nao foi produzida pelo modelo.")
   }
   as.numeric(probability[, POSITIVE_CLASS])
 }
@@ -88,13 +87,13 @@ evaluate_config_cv <- function(data, config, folds) {
     test_index <- folds[[i]]
     training_data <- data[-test_index, , drop = FALSE]
     test_data <- data[test_index, , drop = FALSE]
-    model <- fit_decision_tree(training_data, config)
+    model <- fit_naive_bayes(training_data, config)
     probability <- predict_disease_probability(model, test_data)
-    if (anyNA(probability)) stop("A arvore retornou probabilidade NA.")
+    if (anyNA(probability)) stop("O modelo retornou probabilidade NA.")
 
     predictions[[i]] <- data.frame(
       resample = names(folds)[i],
-      truth = as.character(test_data[[VARIAVEL_ALVO]]),
+      truth = as.character(test_data$classe_doenca),
       probability = probability,
       stringsAsFactors = FALSE
     )
@@ -102,7 +101,7 @@ evaluate_config_cv <- function(data, config, folds) {
   do.call(rbind, predictions)
 }
 
-tune_decision_tree <- function(data, configs, folds) {
+tune_naive_bayes <- function(data, configs, folds) {
   all_results <- vector("list", nrow(configs))
 
   for (i in seq_len(nrow(configs))) {
@@ -124,12 +123,9 @@ tune_decision_tree <- function(data, configs, folds) {
     fold_metrics <- result$fold_metrics
     data.frame(
       id = result$config$id,
-      criterio_divisao = ifelse(
-        result$config$criterio_divisao == "gini", "Gini", "Informacao"
-      ),
-      cp = result$config$cp,
-      minsplit = result$config$minsplit,
-      maxdepth = result$config$maxdepth,
+      density = ifelse(result$config$usekernel, "KDE", "Gaussian"),
+      laplace = result$config$laplace,
+      adjust = result$config$adjust,
       threshold = result$threshold,
       N_resamples = sum(!is.na(fold_metrics$MCC)),
       Mean_MCC = mean_without_na(fold_metrics$MCC),
@@ -146,9 +142,6 @@ tune_decision_tree <- function(data, configs, folds) {
     -ifelse(is.na(tuning_table$Mean_MCC), -Inf, tuning_table$Mean_MCC),
     -ifelse(is.na(tuning_table$Mean_F1), -Inf, tuning_table$Mean_F1),
     -ifelse(is.na(tuning_table$Mean_ROC_AUC), -Inf, tuning_table$Mean_ROC_AUC),
-    # Em empate exato de desempenho, prefere a arvore mais parcimoniosa.
-    -tuning_table$cp,
-    tuning_table$maxdepth,
     tuning_table$id
   )
   best_index <- ordered[1L]
@@ -162,13 +155,16 @@ tune_decision_tree <- function(data, configs, folds) {
 }
 
 config_description <- function(config, threshold = NULL) {
-  criterio <- if (config$criterio_divisao == "gini") "Gini" else "Informacao"
+  density <- if (isTRUE(config$usekernel)) "KDE" else "Gaussian"
   description <- sprintf(
-    "%s (cp = %s, minsplit = %d, profundidade maxima = %d)",
-    criterio,
-    format(config$cp, trim = TRUE),
-    as.integer(config$minsplit),
-    as.integer(config$maxdepth)
+    "%s (laplace = %s%s)",
+    density,
+    format(config$laplace, trim = TRUE),
+    if (isTRUE(config$usekernel)) {
+      paste0(", adjust = ", format(config$adjust, trim = TRUE))
+    } else {
+      ""
+    }
   )
   if (!is.null(threshold)) {
     description <- paste0(description, "; limiar = ", format(threshold, digits = 3))
@@ -177,13 +173,13 @@ config_description <- function(config, threshold = NULL) {
 }
 
 # -----------------------------------------------------------------------------
-# Avaliacao externa: validacao cruzada aninhada
+# Avaliacao externa (nested repeated stratified 10-fold CV)
 # -----------------------------------------------------------------------------
 
 nested_repeated_cv <- function(data, configs, outer_folds, outer_repeats,
                                inner_folds, inner_repeats, seed) {
   outer_splits <- make_repeated_folds(
-    data[[VARIAVEL_ALVO]], k = outer_folds, repeats = outer_repeats, seed = seed
+    data$classe_doenca, k = outer_folds, repeats = outer_repeats, seed = seed
   )
   output <- vector("list", length(outer_splits))
 
@@ -194,24 +190,23 @@ nested_repeated_cv <- function(data, configs, outer_folds, outer_repeats,
     test_data <- data[test_index, , drop = FALSE]
 
     inner_splits <- make_repeated_folds(
-      training_data[[VARIAVEL_ALVO]],
+      training_data$classe_doenca,
       k = inner_folds,
       repeats = inner_repeats,
       seed = seed + i * INNER_SEED_STEP
     )
-    tuning <- tune_decision_tree(training_data, configs, inner_splits)
-    model <- fit_decision_tree(training_data, tuning$config)
+    tuning <- tune_naive_bayes(training_data, configs, inner_splits)
+    model <- fit_naive_bayes(training_data, tuning$config)
     probability <- predict_disease_probability(model, test_data)
-    if (anyNA(probability)) stop("A arvore retornou probabilidade NA na CV externa.")
-    metrics <- binary_metrics(test_data[[VARIAVEL_ALVO]], probability, tuning$threshold)
+    if (anyNA(probability)) stop("O modelo retornou probabilidade NA na CV externa.")
+    metrics <- binary_metrics(test_data$classe_doenca, probability, tuning$threshold)
 
     output[[i]] <- data.frame(
       resample = names(outer_splits)[i],
       selected_id = tuning$config$id,
-      criterio_divisao = ifelse(tuning$config$criterio_divisao == "gini", "Gini", "Informacao"),
-      cp = tuning$config$cp,
-      minsplit = tuning$config$minsplit,
-      maxdepth = tuning$config$maxdepth,
+      density = ifelse(tuning$config$usekernel, "KDE", "Gaussian"),
+      laplace = tuning$config$laplace,
+      adjust = tuning$config$adjust,
       threshold = tuning$threshold,
       t(metrics),
       stringsAsFactors = FALSE
@@ -220,24 +215,22 @@ nested_repeated_cv <- function(data, configs, outer_folds, outer_repeats,
   do.call(rbind, output)
 }
 
-# -----------------------------------------------------------------------------
-# Testes 5x2cv: Gini versus ganho de informacao
-# -----------------------------------------------------------------------------
-
-decision_tree_5x2cv <- function(data, configs_a, configs_b, seed,
-                                 inner_folds, inner_repeats) {
+dietterich_5x2cv <- function(data, configs_a, configs_b, seed,
+                              inner_folds, inner_repeats) {
   return(run_paired_5x2cv(
     data, VARIAVEL_ALVO, configs_a, configs_b,
-    fit_fn = fit_decision_tree,
+    fit_fn = fit_naive_bayes,
     predict_prob_fn = predict_disease_probability,
-    tune_fn = tune_decision_tree,
+    tune_fn = tune_naive_bayes,
     seed = seed, inner_folds = inner_folds, inner_repeats = inner_repeats
   ))
 
   set.seed(seed)
+  # Gerar todos os cinco splits externos antes dos folds internos torna a
+  # sequencia dos sorteios externos explicitamente independente do ajuste.
   outer_splits <- lapply(
     seq_len(5L),
-    function(i) stratified_fold_ids(data[[VARIAVEL_ALVO]], k = 2L)
+    function(i) stratified_fold_ids(data$classe_doenca, k = 2L)
   )
   differences <- matrix(NA_real_, nrow = 5L, ncol = 2L)
   selected_a <- character(10L)
@@ -251,29 +244,32 @@ decision_tree_5x2cv <- function(data, configs_a, configs_b, seed,
       training_data <- data[-test_index, , drop = FALSE]
       test_data <- data[test_index, , drop = FALSE]
 
-      # Cada criterio seleciona seus proprios hiperparametros e limiar usando
-      # apenas a metade de treino; a outra metade permanece totalmente externa.
+      # Configuracao e limiar de cada familia sao escolhidos apenas no treino
+      # da respectiva metade. Portanto, o 5x2cv compara pipelines completos,
+      # sem que a metade de teste influencie a selecao de hiperparametros.
       inner_splits <- make_repeated_folds(
-        training_data[[VARIAVEL_ALVO]],
-        k = inner_folds,
-        repeats = inner_repeats,
+        training_data$classe_doenca, k = inner_folds, repeats = inner_repeats,
         seed = seed + repeat_id * 100L + fold_id * 10L
       )
-      tuning_a <- tune_decision_tree(training_data, configs_a, inner_splits)
-      tuning_b <- tune_decision_tree(training_data, configs_b, inner_splits)
+      tuning_a <- tune_naive_bayes(training_data, configs_a, inner_splits)
+      tuning_b <- tune_naive_bayes(training_data, configs_b, inner_splits)
 
-      model_a <- fit_decision_tree(training_data, tuning_a$config)
-      model_b <- fit_decision_tree(training_data, tuning_b$config)
+      model_a <- fit_naive_bayes(training_data, tuning_a$config)
+      model_b <- fit_naive_bayes(training_data, tuning_b$config)
       probability_a <- predict_disease_probability(model_a, test_data)
       probability_b <- predict_disease_probability(model_b, test_data)
       if (anyNA(probability_a) || anyNA(probability_b)) {
-        stop("A arvore retornou probabilidade NA no teste 5x2cv.")
+        stop("O modelo retornou probabilidade NA no teste 5x2cv.")
       }
       f1_a <- binary_metrics(
-        test_data[[VARIAVEL_ALVO]], probability_a, tuning_a$threshold
+        test_data$classe_doenca,
+        probability_a,
+        tuning_a$threshold
       )["F1"]
       f1_b <- binary_metrics(
-        test_data[[VARIAVEL_ALVO]], probability_b, tuning_b$threshold
+        test_data$classe_doenca,
+        probability_b,
+        tuning_b$threshold
       )["F1"]
       if (is.na(f1_a) || is.na(f1_b)) {
         warning(sprintf(
@@ -291,15 +287,16 @@ decision_tree_5x2cv <- function(data, configs_a, configs_b, seed,
     }
   }
 
-  dietterich_result <- summarize_dietterich_5x2cv(differences)
+  test_result <- summarize_dietterich_5x2cv(differences)
   alpaydin_result <- summarize_alpaydin_5x2cv(differences)
+
   list(
     differences = differences,
-    mean_difference = dietterich_result$mean_difference,
-    statistic = dietterich_result$statistic,
-    df = dietterich_result$df,
-    p_value = dietterich_result$p_value,
-    reason = dietterich_result$reason,
+    mean_difference = test_result$mean_difference,
+    statistic = test_result$statistic,
+    df = test_result$df,
+    p_value = test_result$p_value,
+    reason = test_result$reason,
     alpaydin_f_statistic = alpaydin_result$f_statistic,
     alpaydin_df1 = alpaydin_result$df1,
     alpaydin_df2 = alpaydin_result$df2,
@@ -316,7 +313,7 @@ decision_tree_5x2cv <- function(data, configs_a, configs_b, seed,
 
 cat("\n========================================\n")
 cat(" Analise de Doencas Cardiacas - UCI\n")
-cat(" Modelo: Arvore de Decisao\n")
+cat(" Modelo: Naive Bayes\n")
 cat("========================================\n\n")
 
 cat("1. Carregando e preparando a base Heart Disease - Cleveland (UCI)...\n")
@@ -324,40 +321,43 @@ raw_data <- read_uci_heart_disease()
 heart_data <- prepare_heart_disease(raw_data)
 cat(sprintf("   + Total de registros: %d\n", nrow(heart_data)))
 cat("   + Distribuicao da classe alvo:\n")
-print(table(heart_data[[VARIAVEL_ALVO]]))
-cat("   + Valores ausentes antes do ajuste:\n")
+print(table(heart_data$classe_doenca))
+cat("   + Valores ausentes antes da imputacao:\n")
 print(colSums(is.na(heart_data)))
 
-# cp controla a poda por complexidade; minsplit exige suporte minimo para uma
-# divisao; maxdepth limita a profundidade. A grade inclui arvores mais simples
-# e mais flexiveis sem tornar a busca excessivamente grande para n = 303.
-cp_values <- c(0.001, 0.005, 0.01, 0.02, 0.05)
-tree_configs <- expand.grid(
-  criterio_divisao = c("gini", "information"),
-  cp = cp_values,
-  minsplit = c(10L, 20L),
-  maxdepth = c(3L, 5L, 7L),
+# As configuracoes preservam a natureza mista da base: fatores sao
+# categoricos; as 5 medidas continuas sao Gaussianas ou estimadas por KDE.
+# Laplace > 0 evita probabilidades nulas quando alguma categoria rara nao
+# aparece em um fold de treino, situacao comum nesta amostra pequena.
+laplace_values <- c(0.5, 1, 2)
+gaussian_configs <- data.frame(
+  id = paste0("gaussian_laplace_", laplace_values),
+  laplace = laplace_values,
+  usekernel = FALSE,
+  adjust = NA_real_,
+  stringsAsFactors = FALSE
+)
+kde_configs <- expand.grid(
+  laplace = laplace_values,
+  adjust = c(0.5, 1, 1.5),
   KEEP.OUT.ATTRS = FALSE,
   stringsAsFactors = FALSE
 )
-tree_configs$id <- sprintf(
-  "arvore_%s_cp_%s_minsplit_%d_profundidade_%d",
-  tree_configs$criterio_divisao,
-  format(tree_configs$cp, trim = TRUE, scientific = FALSE),
-  tree_configs$minsplit,
-  tree_configs$maxdepth
+kde_configs$id <- paste0(
+  "kde_laplace_", kde_configs$laplace, "_adjust_", kde_configs$adjust
 )
-CONFIGS <- tree_configs[, c("id", "criterio_divisao", "cp", "minsplit", "maxdepth")]
+kde_configs$usekernel <- TRUE
+kde_configs <- kde_configs[, c("id", "laplace", "usekernel", "adjust")]
+CONFIGS <- rbind(gaussian_configs, kde_configs)
+INNER_FOLDS <- 5L
+INNER_REPEATS <- 3L
 
 cat("\n2. Avaliando o modelo com validacao cruzada aninhada...\n")
 cat(sprintf(
   "   + Validacao externa: %d-fold estratificado repetido %d vezes\n",
   OUTER_FOLDS, OUTER_REPEATS
 ))
-cat(sprintf(
-  "   + Ajuste interno: %d-fold estratificado repetido %d vezes\n",
-  INNER_FOLDS, INNER_REPEATS
-))
+cat("   + Ajuste interno: 5-fold estratificado repetido 3 vezes\n")
 outer_results <- nested_repeated_cv(
   data = heart_data,
   configs = CONFIGS,
@@ -398,24 +398,27 @@ print(matrix(
 cat("\n   + Configuracoes selecionadas nos folds externos:\n")
 print(sort(table(outer_results$selected_id), decreasing = TRUE))
 
+# Ajuste final: usa todos os dados, com repeated stratified 10-fold CV (5x)
+# para escolher a configuracao definitiva e o limiar de decisao.
 cat("\n3. Selecionando a configuracao final com todos os dados...\n")
 cat(sprintf(
   "   + Validacao usada no ajuste final: %d-fold estratificado repetido %d vezes\n",
   OUTER_FOLDS, OUTER_REPEATS
 ))
 final_splits <- make_repeated_folds(
-  heart_data[[VARIAVEL_ALVO]],
+  heart_data$classe_doenca,
   k = OUTER_FOLDS, repeats = OUTER_REPEATS, seed = FINAL_TUNING_SEED
 )
-final_tuning <- tune_decision_tree(heart_data, CONFIGS, final_splits)
-save_evaluation_artifacts("decision_trees", outer_results, final_tuning$tuning_table)
+final_tuning <- tune_naive_bayes(
+  heart_data, CONFIGS, final_splits
+)
+save_evaluation_artifacts("naive_bayes", outer_results, final_tuning$tuning_table)
 cat("   + Resultados detalhados salvos em arquivos CSV.\n")
 best_config <- final_tuning$config
 best_threshold <- final_tuning$threshold
 cat("   + Ranking das configuracoes (MCC como criterio primario):\n")
 print(transform(
   final_tuning$tuning_table,
-  cp = round(cp, 4),
   Mean_MCC = round(Mean_MCC, 4),
   SD_MCC = round(SD_MCC, 4),
   Mean_F1 = round(Mean_F1, 4),
@@ -424,9 +427,9 @@ print(transform(
   SD_ROC_AUC = round(SD_ROC_AUC, 4),
   threshold = round(threshold, 3)
 ), row.names = FALSE)
-cat("\n   + Melhor Arvore de Decisao:", config_description(best_config, best_threshold), "\n")
+cat("\n   + Melhor Naive Bayes:", config_description(best_config, best_threshold), "\n")
 
-final_model <- fit_decision_tree(heart_data, best_config)
+final_model <- fit_naive_bayes(heart_data, best_config)
 model_output <- list(
   model = final_model,
   configuration = best_config,
@@ -439,19 +442,22 @@ model_output <- list(
   source = "UCI Heart Disease - Cleveland (dataset 45)"
 )
 dir.create("models", showWarnings = FALSE, recursive = TRUE)
-saveRDS(model_output, file = file.path("models", "modelo_decision_tree_heart_disease.rds"))
-cat("   + Modelo final salvo em: models/modelo_decision_tree_heart_disease.rds\n")
+saveRDS(model_output, file = file.path("models", "modelo_naive_bayes_heart_disease.rds"))
+cat("   + Modelo final salvo em: models/modelo_naive_bayes_heart_disease.rds\n")
 
-if (best_config$criterio_divisao == "gini") {
-  configs_a <- subset(CONFIGS, criterio_divisao == "gini")
-  configs_b <- subset(CONFIGS, criterio_divisao == "information")
-  family_a <- "Arvore de Decisao com Gini"
-  family_b <- "Arvore de Decisao com ganho de Informacao"
+# Para o 5x2cv, cada familia e ajustada novamente dentro de cada metade de
+# treino. Isso e mais correto que escolher uma configuracao usando todos os
+# dados e depois testa-la nos mesmos dados.
+if (isTRUE(best_config$usekernel)) {
+  configs_a <- subset(CONFIGS, usekernel)
+  configs_b <- subset(CONFIGS, !usekernel)
+  family_a <- "Naive Bayes com KDE"
+  family_b <- "Naive Bayes Gaussiano"
 } else {
-  configs_a <- subset(CONFIGS, criterio_divisao == "information")
-  configs_b <- subset(CONFIGS, criterio_divisao == "gini")
-  family_a <- "Arvore de Decisao com ganho de Informacao"
-  family_b <- "Arvore de Decisao com Gini"
+  configs_a <- subset(CONFIGS, !usekernel)
+  configs_b <- subset(CONFIGS, usekernel)
+  family_a <- "Naive Bayes Gaussiano"
+  family_b <- "Naive Bayes com KDE"
 }
 
 cat("\n4. Executando testes estatisticos 5x2cv...\n")
@@ -461,9 +467,9 @@ cat("   + A:", family_a, "(hiperparametros e limiar ajustados dentro do treino)\
 cat("   + B:", family_b, "(hiperparametros e limiar ajustados dentro do treino)\n")
 five_x_two <- run_paired_5x2cv(
   heart_data, VARIAVEL_ALVO, configs_a, configs_b,
-  fit_fn = fit_decision_tree,
+  fit_fn = fit_naive_bayes,
   predict_prob_fn = predict_disease_probability,
-  tune_fn = tune_decision_tree,
+  tune_fn = tune_naive_bayes,
   seed = DIETTERICH_SEED,
   inner_folds = INNER_FOLDS, inner_repeats = INNER_REPEATS
 )

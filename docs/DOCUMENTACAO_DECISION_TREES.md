@@ -15,9 +15,9 @@ O modelo avaliado é uma Árvore de Decisão de classificação, com comparaçã
 
 | Caminho | Finalidade |
 |---|---|
-| `src/decision_trees.R` | Pipeline completo da árvore: ajuste, validação, métricas, testes estatísticos e salvamento. |
-| `src/heart_disease_data.R` | Carregamento, cache, validação e preparação da base Cleveland. |
-| `src/common_evaluation.R` | Folds, métricas, seleção de limiar, 5x2cv e geração dos CSVs. |
+| `src/decision_trees.r` | Pipeline completo da árvore: ajuste, validação, métricas, testes estatísticos e salvamento. |
+| `src/heart_disease_data.r` | Carregamento, cache, validação e preparação da base Cleveland. |
+| `src/common_evaluation.r` | Folds, métricas, seleção de limiar, 5x2cv e geração dos CSVs. |
 | `models/modelo_decision_tree_heart_disease.rds` | Modelo final treinado com todos os dados. |
 | `results/decision_trees_*.csv` | Resultados por fold, ranking de hiperparâmetros e matriz de confusão agregada. |
 
@@ -122,7 +122,7 @@ Esse tempo inclui download/leitura da base, validação cruzada aninhada, ajuste
 Na raiz do projeto:
 
 ```powershell
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.R
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.r
 ```
 
 Os resultados oficiais a serem incluídos nesta documentação devem sempre vir de execução realizada na máquina do usuário. Ao executar novamente após alguma alteração explicitamente solicitada, envie a saída do terminal para atualização deste documento.

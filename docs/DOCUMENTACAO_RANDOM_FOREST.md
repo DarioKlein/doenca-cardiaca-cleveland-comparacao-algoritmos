@@ -11,9 +11,9 @@ Os resultados desta pagina foram obtidos na execucao realizada pelo usuario em s
 
 ## Arquivos relacionados
 
-- Script do modelo: `src/random_forest.R`;
-- Funcoes de avaliacao compartilhadas: `src/common_evaluation.R`;
-- Importacao e preparo dos dados: `src/heart_disease_data.R`;
+- Script do modelo: `src/random_forest.r`;
+- Funcoes de avaliacao compartilhadas: `src/common_evaluation.r`;
+- Importacao e preparo dos dados: `src/heart_disease_data.r`;
 - Modelo final: `models/modelo_random_forest_heart_disease.rds`;
 - Resultados detalhados: arquivos CSV em `results/`.
 
@@ -152,7 +152,7 @@ A execucao completa terminou em **456,00 segundos** (aproximadamente 7 minutos e
 Execute a partir da raiz do projeto:
 
 ```powershell
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\random_forest.R
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\random_forest.r
 ```
 
 Os pacotes necessarios devem ser instalados manualmente, se ainda nao estiverem disponiveis:

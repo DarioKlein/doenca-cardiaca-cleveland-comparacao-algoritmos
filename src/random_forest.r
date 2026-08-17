@@ -61,8 +61,8 @@ ensure_package("doParallel")
 suppressPackageStartupMessages(library(ranger))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(doParallel))
-source(file.path("src", "heart_disease_data.R"))
-source(file.path("src", "common_evaluation.R"))
+source(file.path("src", "heart_disease_data.r"))
+source(file.path("src", "common_evaluation.r"))
 
 VARIAVEIS_COM_IMPUTACAO <- c("vasos_principais", "talassemia")
 TUNING_CLUSTER <- NULL

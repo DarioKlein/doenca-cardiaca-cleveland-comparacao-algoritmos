@@ -13,9 +13,9 @@ O experimento avalia duas famílias do mesmo algoritmo: Naive Bayes Gaussiano e 
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/naive_bayes.R` | Ajusta, seleciona e avalia o Naive Bayes; apresenta os resultados e salva o modelo final. |
-| `src/heart_disease_data.R` | Importa o subconjunto Cleveland, traduz os nomes das variáveis e prepara a classe-alvo. É compartilhado por todos os algoritmos. |
-| `src/common_evaluation.R` | Funções reutilizáveis de reamostragem, métricas, seleção de limiar, resumos e cálculo do teste 5x2cv. |
+| `src/naive_bayes.r` | Ajusta, seleciona e avalia o Naive Bayes; apresenta os resultados e salva o modelo final. |
+| `src/heart_disease_data.r` | Importa o subconjunto Cleveland, traduz os nomes das variáveis e prepara a classe-alvo. É compartilhado por todos os algoritmos. |
+| `src/common_evaluation.r` | Funções reutilizáveis de reamostragem, métricas, seleção de limiar, resumos e cálculo do teste 5x2cv. |
 | `models/modelo_naive_bayes_heart_disease.rds` | Modelo final treinado em todos os dados, acompanhado da configuração, limiar e metadados necessários para novas predições. |
 
 ## Bibliotecas
@@ -114,7 +114,7 @@ Todas as métricas usam `doenca` como classe positiva.
 
 Além das métricas, o terminal exibe a matriz de confusão agregada dos 50 folds externos e a frequência de seleção de cada configuração. Essa matriz é descritiva: ela soma 1.515 predições (303 pacientes × 5 repetições), portanto cada paciente contribui cinco vezes; não é a matriz de confusão de um único experimento com 303 pacientes.
 
-## Funções reutilizáveis (`common_evaluation.R`)
+## Funções reutilizáveis (`common_evaluation.r`)
 
 | Função | Finalidade |
 |---|---|
@@ -133,7 +133,7 @@ Além das métricas, o terminal exibe a matriz de confusão agregada dos 50 fold
 
 Essas funções deverão ser usadas pelos scripts de SVM, Random Forest e Decision Tree para que todos os modelos sejam avaliados pela mesma regra.
 
-## Funções específicas do Naive Bayes (`naive_bayes.R`)
+## Funções específicas do Naive Bayes (`naive_bayes.r`)
 
 | Função | Finalidade |
 |---|---|
@@ -193,7 +193,7 @@ O tempo total registrado nesta execução foi **71,34 segundos**. Esse valor pod
 No diretório do projeto, execute:
 
 ```powershell
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.R
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.r
 ```
 
 O terminal exibirá as etapas da análise, as métricas, a matriz de confusão agregada, a seleção final, o resultado do 5x2cv e o tempo total. Ao final, o arquivo em `models/modelo_naive_bayes_heart_disease.rds` é atualizado; tabelas detalhadas são salvas em `results/`.
@@ -203,7 +203,7 @@ O terminal exibirá as etapas da análise, as métricas, a matriz de confusão a
 Para garantir comparação justa, os scripts de SVM, Random Forest e Decision Tree devem:
 
 1. usar o mesmo subconjunto Cleveland e a mesma definição da classe positiva;
-2. importar `common_evaluation.R`;
+2. importar `common_evaluation.r`;
 3. usar a mesma estrutura de validação cruzada aninhada e as mesmas sementes;
 4. escolher hiperparâmetros e limiar somente dentro dos dados de treino de cada fold;
 5. reportar as métricas da avaliação externa com média ± desvio-padrão;

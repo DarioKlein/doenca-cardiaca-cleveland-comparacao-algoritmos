@@ -15,6 +15,6 @@
 No diretório raiz do projeto:
 
 ```powershell
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.R
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.R
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.r
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.r
 ```

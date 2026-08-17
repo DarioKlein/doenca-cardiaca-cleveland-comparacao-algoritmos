@@ -20,10 +20,10 @@ O usuário prefere explicações em português, nomes semânticos em português 
 
 ```text
 src/
-  common_evaluation.R       # Métricas, folds, limiar, 5x2cv e CSVs compartilhados
-  heart_disease_data.R      # Importação, cache, validação e preparo da base
-  naive_bayes.R             # Pipeline completo de Naive Bayes
-  decision_trees.R          # Pipeline completo de Árvore de Decisão
+  common_evaluation.r       # Métricas, folds, limiar, 5x2cv e CSVs compartilhados
+  heart_disease_data.r      # Importação, cache, validação e preparo da base
+  naive_bayes.r             # Pipeline completo de Naive Bayes
+  decision_trees.r          # Pipeline completo de Árvore de Decisão
 data/
   processed.cleveland.data  # Cache validado da base UCI (303 x 14)
 models/
@@ -42,15 +42,15 @@ README.md
 Execute os scripts a partir da raiz:
 
 ```powershell
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.R
-& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.R
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.r
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.r
 ```
 
 Não mover scripts novamente sem atualizar os caminhos em `source(file.path("src", ...))` e os caminhos de saída (`data/`, `models/`, `results/`).
 
 ## Base e variáveis
 
-O projeto usa intencionalmente `processed.cleveland.data`, não um carregador genérico do `ucimlrepo`, porque isso fixa o subconjunto Cleveland com 303 pacientes. `heart_disease_data.R` tenta usar o cache; se necessário, baixa da UCI, valida que o conteúdo é 303 x 14 e grava o cache.
+O projeto usa intencionalmente `processed.cleveland.data`, não um carregador genérico do `ucimlrepo`, porque isso fixa o subconjunto Cleveland com 303 pacientes. `heart_disease_data.r` tenta usar o cache; se necessário, baixa da UCI, valida que o conteúdo é 303 x 14 e grava o cache.
 
 As variáveis recebem nomes em português:
 
@@ -78,7 +78,7 @@ O DP é **variabilidade entre folds sobrepostos**, não erro-padrão de amostras
 
 ## Métricas comuns
 
-Implementadas em `src/common_evaluation.R`:
+Implementadas em `src/common_evaluation.r`:
 
 - Accuracy;
 - Sensitivity (recall da classe `doenca`);
@@ -107,7 +107,7 @@ O teste de Dietterich foi originalmente derivado para taxa de erro; o uso com F1
 
 ## Naive Bayes
 
-Arquivo: `src/naive_bayes.R`.
+Arquivo: `src/naive_bayes.r`.
 
 Pacotes: `naivebayes`, `withr`.
 
@@ -136,7 +136,7 @@ Comparação anterior KDE vs. Gaussiano em F1: Dietterich `p = 0,64683`; Alpayd�
 
 ## Árvore de Decisão
 
-Arquivo: `src/decision_trees.R`.
+Arquivo: `src/decision_trees.r`.
 
 Pacotes: `rpart`, `withr`.
 
@@ -191,9 +191,9 @@ Não inventar, estimar, substituir ou publicar no Markdown resultados de uma exe
 
 1. Reexecutar Naive Bayes e Árvore de Decisão com a versão atual.
 2. Registrar os novos resultados e atualizar documentação.
-3. Criar `src/random_forest.R` com imputação treinada dentro de cada fold.
-4. Criar `src/svm.R` com imputação e normalização treinadas dentro de cada fold.
-5. Depois dos quatro modelos, criar `src/compare_models.R` para comparação pareada, baseline da classe majoritária e correção de múltiplas comparações (por exemplo, Holm). Não antecipar esse script antes de todos os modelos existirem.
+3. Criar `src/random_forest.r` com imputação treinada dentro de cada fold.
+4. Criar `src/svm.r` com imputação e normalização treinadas dentro de cada fold.
+5. Depois dos quatro modelos, criar `src/compare_models.r` para comparação pareada, baseline da classe majoritária e correção de múltiplas comparações (por exemplo, Holm). Não antecipar esse script antes de todos os modelos existirem.
 6. Implementar importância por permutação dentro dos folds externos para comparação justa entre todos os algoritmos; não usar apenas importância interna de Gini da árvore/Random Forest como ranking geral.
 
 ## Decisões que não devem ser alteradas sem justificativa

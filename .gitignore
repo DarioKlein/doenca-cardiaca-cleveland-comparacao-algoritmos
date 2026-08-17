@@ -1,0 +1,26 @@
+# Artefatos gerados pelas execucoes dos modelos
+results/
+models/
+
+# Sessao e historico do R
+.Rhistory
+.RData
+.Ruserdata
+.Rprofile.user
+
+# Arquivos temporarios do R
+*.RDataTmp
+*.Rproj.user
+
+# Ambiente do RStudio
+.Rproj.user/
+
+# Arquivos de sistema e editores
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
