@@ -17,4 +17,22 @@ No diretório raiz do projeto:
 ```powershell
 & 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\naive_bayes.r
 & 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\decision_trees.r
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\random_forest.r
+& 'C:\Program Files\R\R-4.5.1\bin\Rscript.exe' src\svm.r
 ```
+
+## Dependencias
+
+Os scripts nao instalam pacotes automaticamente. Instale manualmente apenas os
+que ainda nao estiverem disponiveis:
+
+```r
+install.packages(c(
+  "naivebayes", "rpart", "ranger", "e1071", "withr", "digest", "foreach",
+  "doParallel"
+))
+```
+
+O Random Forest usa 12 workers por padrao, limitado aos nucleos logicos
+detectados menos um. Para ajustar sem editar o script, defina
+`RF_TUNING_WORKERS` antes da execucao.

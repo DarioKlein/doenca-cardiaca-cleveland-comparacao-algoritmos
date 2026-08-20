@@ -35,6 +35,13 @@ Foram comparadas duas familias implementadas pelo pacote `ranger`:
 - Random Forest com criterio de Gini (`splitrule = "gini"`);
 - Random Forest Extra-Trees (`splitrule = "extratrees"`).
 
+Na segunda familia, `extratrees` altera a regra de escolha dos cortes, com uma
+divisao aleatoria candidata por variavel (`num.random.splits = 1`). O bootstrap
+e mantido (`replace = TRUE`, `sample.fraction = 1`), assim como o tratamento dos
+fatores. Portanto, esta familia deve ser interpretada como **Random Forest com
+regra de divisao extremamente aleatorizada**, e nao como uma reproducao literal
+do algoritmo Extra-Trees canonico sem bagging.
+
 A grade teve 36 configuracoes, combinando as duas familias com:
 
 | Hiperparametro | Valores |
@@ -57,11 +64,28 @@ A estimativa principal de generalizacao usa validacao cruzada estratificada anin
 
 O criterio principal de selecao e o **MCC**. F1 e ROC-AUC sao usados nos desempates e tambem reportados como medidas complementares. O limiar e escolhido por `select_threshold()`, que avalia os cortes relevantes das probabilidades out-of-fold; nao e usada uma grade arbitraria de limiares.
 
+Depois da avaliacao externa, o modelo destinado a novas previsoes e escolhido
+com todos os 303 registros por uma CV estratificada 10-fold repetida 5 vezes.
+Essa etapa final usa mais reamostragens do que o ajuste interno 5-fold repetido
+3 vezes, pois nao existe nela um fold externo reservado para estimar desempenho.
+Naive Bayes e Arvore de Decisao adotam a mesma distincao. A estimativa oficial de
+generalizacao continua sendo exclusivamente a dos 50 folds externos.
+
 ## Paralelismo e reprodutibilidade
 
-O `ranger` foi mantido com `num.threads = 1L`. O paralelismo e aplicado ao conjunto de configuracoes do tuning, com um cluster PSOCK de 12 workers via `doParallel` e `foreach`. O cluster e encerrado ao final mesmo se ocorrer erro.
+O `ranger` foi mantido com `num.threads = 1L`. O paralelismo e aplicado ao conjunto de configuracoes do tuning, com um cluster PSOCK via `doParallel` e `foreach`. O padrao e 12 workers, limitado automaticamente ao numero de nucleos logicos detectados menos um. O valor pode ser ajustado pela variavel de ambiente `RF_TUNING_WORKERS`. O cluster e encerrado ao final mesmo se ocorrer erro.
+
+Essa foi uma excecao deliberada a preferencia inicial por execucao sequencial:
+a versao single-thread levou aproximadamente 42 minutos e o volume total da
+grade alcanca 34.271 ajustes do `ranger`. O paralelismo muda apenas a forma de
+executar configuracoes independentes, nao o que cada configuracao calcula.
 
 As sementes de cada ajuste sao derivadas de uma chave deterministica que identifica a configuracao, o resample e as linhas de treino. A chave e transformada em inteiro por hash deterministico (`digest::digest2int()`); se necessario, ha resolucao deterministica de colisao. Isso evita depender de somas ou concatenacoes ingenuas de inteiros e torna o resultado reprodutivel ao repetir o script com a mesma semente, dados e versoes de pacotes. Nesta execucao foram alocadas 34.271 sementes deterministicas, sem colisao a resolver.
+
+A execucao oficial registrada anteriormente nao imprimiu as versoes dos pacotes.
+A versao atual do script passa a registrar no terminal e no RDS as versoes de R,
+`ranger`, `withr`, `digest`, `foreach` e `doParallel`, para que futuras execucoes
+possam ser auditadas sem estimar esse dado retrospectivamente.
 
 ## Resultados de generalizacao
 
@@ -162,6 +186,12 @@ install.packages(c("ranger", "withr", "digest", "foreach", "doParallel"))
 ```
 
 O script nao instala pacotes automaticamente.
+
+Para ajustar o numero de workers no PowerShell, antes da execucao:
+
+```powershell
+$env:RF_TUNING_WORKERS = "8"
+```
 
 ## Interpretacao
 

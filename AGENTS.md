@@ -11,8 +11,8 @@ O usuário quer comparar quatro algoritmos sob **o mesmo protocolo metodológico
 
 1. Naive Bayes;
 2. Árvore de Decisão;
-3. Random Forest (a criar);
-4. SVM (a criar).
+3. Random Forest;
+4. SVM.
 
 O usuário prefere explicações em português, nomes semânticos em português para as variáveis e análise crítica de sugestões: não implementar uma “melhoria” apenas porque ela foi sugerida; primeiro verificar se é correta, necessária e adequada ao escopo.
 
@@ -24,6 +24,8 @@ src/
   heart_disease_data.r      # Importação, cache, validação e preparo da base
   naive_bayes.r             # Pipeline completo de Naive Bayes
   decision_trees.r          # Pipeline completo de Árvore de Decisão
+  random_forest.r           # Pipeline completo de Random Forest
+  svm.r                     # Pipeline completo de SVM
 data/
   processed.cleveland.data  # Cache validado da base UCI (303 x 14)
 models/
@@ -191,10 +193,9 @@ Não inventar, estimar, substituir ou publicar no Markdown resultados de uma exe
 
 1. Reexecutar Naive Bayes e Árvore de Decisão com a versão atual.
 2. Registrar os novos resultados e atualizar documentação.
-3. Criar `src/random_forest.r` com imputação treinada dentro de cada fold.
-4. Criar `src/svm.r` com imputação e normalização treinadas dentro de cada fold.
-5. Depois dos quatro modelos, criar `src/compare_models.r` para comparação pareada, baseline da classe majoritária e correção de múltiplas comparações (por exemplo, Holm). Não antecipar esse script antes de todos os modelos existirem.
-6. Implementar importância por permutação dentro dos folds externos para comparação justa entre todos os algoritmos; não usar apenas importância interna de Gini da árvore/Random Forest como ranking geral.
+3. Executar o SVM e registrar os resultados oficiais enviados pelo usuário.
+4. Depois dos quatro modelos, criar `src/compare_models.r` para comparação pareada, baseline da classe majoritária e correção de múltiplas comparações (por exemplo, Holm). Não antecipar esse script antes de todos os modelos existirem.
+5. Implementar importância por permutação dentro dos folds externos para comparação justa entre todos os algoritmos; não usar apenas importância interna de Gini da árvore/Random Forest como ranking geral.
 
 ## Decisões que não devem ser alteradas sem justificativa
 
@@ -204,7 +205,8 @@ Não inventar, estimar, substituir ou publicar no Markdown resultados de uma exe
 - Não criar IC a partir dos 50 folds como se fossem independentes.
 - Não usar um t-test pareado comum sobre folds repetidos.
 - Não adicionar um limiar clínico fixo, como sensibilidade >= 0,90, sem uma exigência clínica explícita do estudo.
-- Não paralelizar agora: priorizar reprodutibilidade e clareza; avaliar apenas se o tempo se tornar impeditivo.
+- Não paralelizar por padrão: priorizar reprodutibilidade e clareza; avaliar apenas se o tempo se tornar impeditivo.
+- Exceção acionada para Random Forest: a execução sequencial levou cerca de 42 minutos. O tuning de configurações usa `doParallel`/`foreach`, enquanto cada `ranger` permanece com uma thread e sementes determinísticas por tarefa. Essa autorização é específica do Random Forest; o SVM deve ser medido e justificado separadamente antes de receber paralelismo.
 
 ## Convenções de implementação
 
