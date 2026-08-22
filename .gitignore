@@ -2,6 +2,9 @@
 results/
 models/
 
+# Instrucoes locais para agentes de desenvolvimento
+AGENTS.md
+
 # Sessao e historico do R
 .Rhistory
 .RData
