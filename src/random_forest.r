@@ -4,7 +4,7 @@ SEMENTE <- 20260804L
 REPETICOES <- 3L
 NUMERO_FOLDS <- 5L
 LIMIAR <- 0.5
-NUMERO_THREADS <- 2L
+NUMERO_THREADS <- 1L
 VARIAVEIS_IMPUTADAS <- c("vasos_principais", "talassemia")
 
 source(file.path("src", "heart_disease_data.r"))
