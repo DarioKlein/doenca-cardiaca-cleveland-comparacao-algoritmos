@@ -1,6 +1,6 @@
 # Relatório completo do projeto: comparação de algoritmos para classificação de doença cardíaca
 
-> Documento de consolidação metodológica e de resultados — atualizado em 2 de setembro de 2026.
+> Documento de consolidação metodológica e de resultados — atualizado em 7 de setembro de 2026.
 >
 > Este arquivo reúne as decisões tomadas, as alterações realizadas no projeto, o protocolo experimental, o pré-processamento, as configurações avaliadas, as métricas, os resultados das bases Cleveland e Kaggle, a interpretação das hipóteses, a comparação com a literatura e as limitações. Os números apresentados foram lidos dos CSVs oficiais existentes no projeto.
 
@@ -18,16 +18,17 @@ Os mesmos algoritmos, grades de hiperparâmetros, sementes, folds, limiar de cla
 - **Cleveland Heart Disease**, com 303 registros e 13 variáveis preditoras;
 - **Cardiovascular Disease Dataset do Kaggle**, com 70.000 registros originais e 68.610 após a limpeza de medidas fisiologicamente implausíveis.
 
-Foi adotada validação cruzada estratificada de 5 folds, repetida 3 vezes. Cada algoritmo utiliza previsões fora da amostra, chamadas de *out-of-fold* ou OOF, para calcular as métricas. A configuração vencedora de cada algoritmo é escolhida pela maior média do MCC, com desempate por F1, ROC-AUC e identificador.
+O estudo passou a ter duas camadas. A etapa exploratória preservada usa validação cruzada estratificada de 5 folds repetida 3 vezes nas duas bases. A avaliação complementar da Cleveland usa os mesmos 5 folds × 3 repetições no ciclo externo e 3 folds no ciclo interno. Nela, a seleção por MCC ocorre exclusivamente dentro do treino externo, antes da avaliação no teste externo intocado.
 
 Os principais resultados foram:
 
-- na base Cleveland, o **Naive Bayes Gaussiano** apresentou o melhor desempenho descritivo, com acurácia de `0,8361`, MCC de `0,6694` e ROC-AUC de `0,9056`;
+- na avaliação complementar da Cleveland, o **Naive Bayes** apresentou o melhor desempenho descritivo, com acurácia média por fold de `0,8328`, MCC de `0,6667` e ROC-AUC de `0,9100`;
 - na base Kaggle, a **Random Forest com 500 árvores e mtry 3** apresentou o maior MCC (`0,4607`) e a maior acurácia (`0,7300`), mas sua vantagem sobre a SVM foi muito pequena;
 - a Árvore de Decisão apresentou menor capacidade discriminativa nas duas bases, especialmente segundo a ROC-AUC;
 - os resultados são compatíveis com valores encontrados em estudos publicados para essas bases;
 - os algoritmos são cientificamente defensáveis como comparação acadêmica e como *baselines*, mas os resultados não representam validação clínica;
-- não foi executado um teste inferencial apropriado entre algoritmos. Portanto, **a hipótese nula não pode ser rejeitada e a hipótese de superioridade consistente da Random Forest não foi confirmada**.
+- as seis comparações pareadas de MCC na Cleveland foram analisadas pelo teste t corrigido de Nadeau–Bengio, com correção de Holm; nenhuma foi significativa (`menor p Holm = 0,4381`);
+- por isso, **H0 não foi rejeitada na análise complementar da Cleveland**, e a hipótese direcional de superioridade da Random Forest não foi corroborada. A Kaggle permanece descritiva.
 
 ## 2. Contexto, pergunta e objetivos
 
@@ -45,10 +46,10 @@ Comparar o desempenho preditivo e o custo computacional de quatro algoritmos de 
 - aplicar o mesmo protocolo de avaliação aos quatro algoritmos;
 - evitar vazamento de dados no pré-processamento aprendido;
 - calcular métricas de classificação, discriminação, calibração e tempo;
-- observar a estabilidade dos resultados entre três repetições da validação cruzada;
+- observar a estabilidade dos resultados nos 15 folds externos e nas três repetições;
 - comparar o comportamento dos algoritmos em uma base pequena e em uma base muito maior;
 - verificar se os resultados são compatíveis com trabalhos publicados;
-- avaliar descritivamente a hipótese de superioridade da Random Forest;
+- testar formalmente as diferenças de MCC na Cleveland e avaliar descritivamente a Kaggle;
 - produzir CSVs e gráficos reutilizáveis na apresentação dos resultados.
 
 ## 3. Hipóteses do estudo
@@ -59,27 +60,29 @@ As hipóteses originalmente formuladas foram:
 
 > **H1:** O algoritmo Random Forest apresentará melhor desempenho entre os algoritmos estudados para a classificação de doenças cardíacas.
 
-Essas duas proposições não são alternativas estatísticas perfeitamente complementares. É possível existir diferença entre algoritmos e, ao mesmo tempo, o melhor algoritmo ser Naive Bayes ou SVM, em vez de Random Forest. Para uma análise estatística futura, recomenda-se separar as proposições:
+Essas duas proposições não são alternativas estatísticas perfeitamente complementares. É possível existir diferença entre algoritmos e, ao mesmo tempo, o melhor algoritmo ser Naive Bayes ou SVM, em vez de Random Forest. Para a interpretação estatística, as proposições foram separadas assim:
 
 - **H0:** não existe diferença estatisticamente significativa de desempenho entre os algoritmos;
 - **H1a:** existe diferença estatisticamente significativa entre pelo menos dois algoritmos;
 - **H1b, direcional:** espera-se que a Random Forest apresente o melhor desempenho médio.
 
-O MCC deve ser declarado como métrica primária para testar essas hipóteses, pois foi a métrica usada para selecionar as configurações. As demais métricas devem ser tratadas como complementares.
+O MCC foi definido como métrica primária para testar essas hipóteses, pois também orienta a seleção interna das configurações. As demais métricas são complementares.
 
 ### 3.1 Conclusão atual sobre as hipóteses
 
-Com o protocolo e os resultados atuais:
+Com o protocolo complementar da Cleveland:
 
-- **H0 não foi rejeitada**, pois não foi realizado um teste inferencial apropriado;
-- **H1 não foi corroborada de forma consistente**, porque a Random Forest venceu apenas na base Kaggle;
-- na Cleveland, o Naive Bayes obteve MCC `0,6694`, superior ao MCC `0,6428` da Random Forest;
-- na Kaggle, a Random Forest obteve MCC `0,4607`, contra `0,4591` da SVM, diferença de apenas `0,0016`;
-- a liderança observada em um ranking descritivo não equivale a uma diferença estatisticamente significativa.
+- foram comparados os 15 MCCs externos pareados de cada algoritmo;
+- aplicou-se o teste t corrigido de Nadeau–Bengio e correção de Holm às seis comparações bilaterais;
+- nenhum par foi significativo a `α = 0,05`; o menor p-valor ajustado foi `0,4381`;
+- **H0 não foi rejeitada**;
+- isso não prova igualdade ou equivalência, mas indica evidência insuficiente de diferença sob a amostra e o desenho utilizados;
+- **H1 direcional não foi corroborada**, pois o Naive Bayes, e não a Random Forest, teve o maior MCC médio na Cleveland (`0,6667` contra `0,6354`);
+- na Kaggle descritiva, a Random Forest obteve MCC `0,4607`, contra `0,4591` da SVM, diferença de apenas `0,0016`.
 
 Uma formulação segura para o relatório científico é:
 
-> Os resultados não forneceram evidências suficientes para rejeitar a hipótese nula. Embora a Random Forest tenha apresentado o melhor desempenho descritivo na base Kaggle, sua vantagem sobre a SVM foi muito pequena. Na base Cleveland, o Naive Bayes superou a Random Forest. Assim, a hipótese de que a Random Forest apresentaria o melhor desempenho entre os algoritmos não foi confirmada de maneira consistente nas duas bases.
+> Na avaliação complementar da Cleveland, nenhuma das seis comparações pareadas de MCC permaneceu significativa após a correção de Holm. Portanto, a hipótese nula não foi rejeitada. O Naive Bayes apresentou o maior MCC médio, enquanto a Random Forest ficou em terceiro lugar; logo, a expectativa direcional de superioridade da Random Forest não foi corroborada. A Kaggle permanece uma análise descritiva, na qual Random Forest e SVM tiveram resultados muito próximos.
 
 ## 4. Alterações e decisões realizadas no projeto
 
@@ -102,9 +105,12 @@ O projeto foi simplificado para permanecer compreensível, reprodutível e execu
 15. inclusão de paralelismo entre folds na base Kaggle, usando dois processos;
 16. preservação de uma única thread dentro de cada ajuste de Random Forest na base Kaggle, evitando paralelismo aninhado;
 17. registro das limitações da comparação temporal e da validação não aninhada;
-18. exclusão de `AGENTS.md` pelo `.gitignore`, por ser um arquivo local de orientação de desenvolvimento.
+18. exclusão de `AGENTS.md` pelo `.gitignore`, por ser um arquivo local de orientação de desenvolvimento;
+19. reintrodução, somente na Cleveland, de uma avaliação complementar aninhada com ciclo interno de 3 folds;
+20. congelamento de folds, sementes e assinaturas para auditoria;
+21. inclusão do teste t corrigido de Nadeau–Bengio e da correção de Holm para as seis comparações de MCC.
 
-Não é salvo um modelo final adicional em RDS. O trabalho atual avalia os algoritmos por validação cruzada e salva resultados, rankings, resumos e previsões. Ajustar um modelo final produziria uma etapa experimental adicional e deve ser feito apenas quando houver uma finalidade definida para esse modelo.
+Não é salvo um modelo final para implantação. A avaliação complementar usa arquivos RDS locais para congelar os dados preparados e manter checkpoints de cada fold; esses arquivos servem à retomada e à reprodutibilidade, não constituem um instrumento de diagnóstico. Ajustar um modelo final em todos os dados seria uma etapa experimental adicional e só deve ocorrer quando houver finalidade definida.
 
 ## 5. Organização do projeto
 
@@ -114,10 +120,12 @@ Após a expansão do estudo, a área de trabalho foi dividida em duas pastas:
 TesteGPT/
   Clevand/
     src/
+      nested/
     docs/
     results/
       csvs/
       imagens/
+      cleveland_ncv_5x3_inner3_v1/
   Kaggle/
     dataset/
     src/
@@ -137,7 +145,12 @@ O nome da pasta `Clevand` foi mantido como existe no projeto. No texto científi
 - `src/decision_trees.r`: configura e avalia a Árvore de Decisão;
 - `src/random_forest.r`: configura e avalia a Random Forest;
 - `src/svm.r`: configura e avalia a SVM linear;
-- `src/compare_models.r`: lê os resumos e gera os gráficos comparativos.
+- `src/compare_models.r`: lê os resumos e gera os gráficos comparativos da etapa exploratória;
+- `src/nested/prepare_experiment.r`: importa a Cleveland, congela dados, partições e sementes da avaliação complementar;
+- `src/nested/run_*.r`: executa os quatro algoritmos sob validação cruzada aninhada;
+- `src/nested/validate_results.r`: verifica integridade, cobertura OOF e pareamento;
+- `src/nested/statistical_analysis.r`: executa as seis comparações pareadas de MCC;
+- `src/nested/compare_models.r`: gera gráficos das métricas externas e da inferência.
 
 ### 5.2 Arquivos de código da Kaggle
 
@@ -296,76 +309,47 @@ Não foram eliminadas linhas apenas por compartilharem as mesmas característica
 
 ## 8. Protocolo experimental
 
-### 8.1 Validação cruzada
+### 8.1 Camada exploratória preservada
 
-O protocolo utilizado em cada base é:
+O protocolo original das duas bases usa validação cruzada estratificada de 5 folds, repetida 3 vezes, com sementes `20260804`, `20260805` e `20260806`, mesmos folds entre algoritmos, classe positiva `doenca` e limiar `0,5`. As previsões OOF dos cinco folds são reunidas em cada repetição. A mesma validação participa da seleção da configuração e da estimativa do desempenho; por isso, essa camada é exploratória e pode conter otimismo de seleção.
 
-- validação cruzada estratificada de 5 folds;
-- 3 repetições completas;
-- sementes `20260804`, `20260805` e `20260806`;
-- mesmos folds para os quatro algoritmos;
-- classe positiva: `doenca`;
-- limiar de classificação: `0,5`;
-- métricas calculadas sobre todas as previsões OOF reunidas em cada repetição;
-- apresentação final por média e desvio-padrão das três repetições.
+Na Cleveland, os folds possuem 60 ou 61 pacientes. Na Kaggle, cada fold possui 13.722 registros. A camada exploratória gera 909 previsões OOF por algoritmo na Cleveland e 205.830 na Kaggle.
 
-Na Cleveland, os folds possuem 60 ou 61 pacientes. Na Kaggle, cada fold possui exatamente 13.722 registros.
+### 8.2 Avaliação complementar aninhada da Cleveland
 
-Em cada repetição, cada paciente aparece uma vez no fold de teste e quatro vezes nos conjuntos de treino. Ao final de uma repetição, todos os pacientes possuem uma previsão produzida por um modelo que não foi treinado com aquele paciente.
+O protocolo `cleveland_ncv_5x3_inner3_v1` mantém 5 folds externos × 3 repetições e acrescenta 3 folds internos em cada treino externo:
 
-### 8.2 Previsões OOF
+1. o conjunto de teste externo é separado e não participa da seleção;
+2. cada configuração é avaliada nos 3 folds internos;
+3. seleciona-se a maior média interna de MCC;
+4. empates são resolvidos por F1, ROC-AUC e identificador;
+5. a configuração escolhida é reajustada no treino externo completo;
+6. o modelo é avaliado uma única vez no teste externo;
+7. as 15 avaliações externas ficam pareadas entre os quatro algoritmos.
 
-As previsões OOF permitem:
+Toda imputação e toda padronização são aprendidas no treino vigente. O ciclo externo estima o desempenho do procedimento completo de seleção, enquanto o ciclo interno escolhe os hiperparâmetros.
 
-- recalcular métricas;
-- construir matrizes de confusão;
-- comparar erros entre algoritmos;
-- verificar se cada registro recebeu previsão fora da amostra;
-- realizar análises estatísticas emparelhadas futuras.
+### 8.3 Partições, sementes e auditoria
 
-Para cada algoritmo selecionado são armazenadas:
+As partições externas, partições internas e sementes de cada ajuste foram geradas antes dos modelos e persistidas em CSV. Todos os algoritmos usam exatamente o mesmo plano externo. Os manifestos registram MD5 dos dados, partições, sementes e arquivos centrais de código, além de versão do R, início, fim e quantidade de ajustes.
 
-- 909 previsões na Cleveland: `303 registros × 3 repetições`;
-- 205.830 previsões na Kaggle: `68.610 registros × 3 repetições`.
-
-Somando os quatro algoritmos, existem 3.636 previsões selecionadas na Cleveland e 823.320 na Kaggle.
-
-### 8.3 Seleção da configuração
-
-As configurações são ordenadas pelos seguintes critérios:
-
-1. maior MCC médio;
-2. maior F1 médio;
-3. maior ROC-AUC média;
-4. identificador em ordem alfabética, apenas para desempate final reprodutível.
-
-A escolha pelo MCC impede que a configuração seja selecionada apenas por acurácia. O MCC considera verdadeiros positivos, verdadeiros negativos, falsos positivos e falsos negativos.
+Cada algoritmo produz 15 linhas de métricas externas e 909 previsões OOF (`303 × 3`). A validação automática confirma ausência de duplicação por repetição/registro, cobertura integral, probabilidades finitas no intervalo `[0,1]`, configurações válidas e correspondência exata com os folds congelados.
 
 ### 8.4 Quantidade de ajustes
 
-| Algoritmo | Configurações | Folds | Repetições | Ajustes por base |
-|---|---:|---:|---:|---:|
-| Naive Bayes | 2 | 5 | 3 | 30 |
-| Árvore de Decisão | 6 | 5 | 3 | 90 |
-| Random Forest | 4 | 5 | 3 | 60 |
-| SVM | 3 | 5 | 3 | 45 |
-| **Total** | **15** |  |  | **225** |
+Na camada exploratória são 225 ajustes por base. Na avaliação complementar da Cleveland, cada configuração é ajustada três vezes no ciclo interno de cada fold externo e há um reajuste externo:
 
-São 225 ajustes explícitos por base e 450 ajustes explícitos nas duas bases. Esse número se refere aos modelos ajustados diretamente pelo protocolo externo. Rotinas internas dos pacotes, como a produção de probabilidades pela SVM, não são contadas como novos folds do projeto.
+| Algoritmo | Configurações | Ajustes internos | Reajustes externos | Total complementar |
+|---|---:|---:|---:|---:|
+| Naive Bayes | 2 | 90 | 15 | 105 |
+| Árvore de Decisão | 6 | 270 | 15 | 285 |
+| Random Forest | 4 | 180 | 15 | 195 |
+| SVM | 3 | 135 | 15 | 150 |
+| **Total** |  | **675** | **60** | **735** |
 
 ### 8.5 Paralelismo
 
-Na Cleveland, os folds são processados sequencialmente. A Random Forest utiliza uma thread por ajuste.
-
-Na Kaggle:
-
-- são criados dois processos PSOCK;
-- folds diferentes podem ser processados simultaneamente;
-- cada Random Forest utiliza uma única thread;
-- evita-se combinar vários processos externos com múltiplas threads internas;
-- as sementes continuam determinadas por repetição, configuração e fold.
-
-O paralelismo reduz o tempo de parede, mas não modifica os folds, os dados ou as métricas.
+A Cleveland é processada sequencialmente e cada Random Forest usa uma thread. Na Kaggle exploratória, dois processos PSOCK podem avaliar folds diferentes simultaneamente, mantendo uma thread dentro de cada Random Forest. O paralelismo altera o tempo de parede, mas não os folds ou as métricas.
 
 ## 9. Algoritmos e grades avaliadas
 
@@ -537,6 +521,8 @@ Por isso, o tempo é uma medida prática da execução observada, não uma propr
 
 ## 11. Resultados da base Cleveland
 
+As subseções 11.1 a 11.5 preservam os resultados da avaliação exploratória original. A subseção 11.6 apresenta a avaliação complementar aninhada e deve ser priorizada para a inferência estatística.
+
 ### 11.1 Configurações selecionadas
 
 | Algoritmo | Configuração selecionada |
@@ -615,6 +601,47 @@ A terceira repetição da Random Forest apresentou redução de desempenho, expl
 - a diferença entre Naive Bayes e Random Forest foi de aproximadamente 1,32 ponto percentual;
 - a diferença entre Naive Bayes e Árvore foi de aproximadamente 5,61 pontos percentuais;
 - essas diferenças são descritivas e não devem ser chamadas de estatisticamente significativas.
+
+### 11.6 Avaliação complementar aninhada
+
+A execução `cleveland_ncv_5x3_inner3_v1`, realizada em 7 de setembro de 2026, concluiu os 735 ajustes previstos. Cada resumo abaixo usa média e desvio-padrão dos 15 folds externos, e não das três métricas OOF agregadas por repetição.
+
+| Métrica | Naive Bayes | Árvore | Random Forest | SVM |
+|---|---:|---:|---:|---:|
+| Acurácia | **0,8328 ± 0,0304** | 0,7745 ± 0,0566 | 0,8161 ± 0,0545 | 0,8250 ± 0,0512 |
+| Sensibilidade | **0,7989 ± 0,0813** | 0,7363 ± 0,1103 | 0,7843 ± 0,1087 | 0,7797 ± 0,1009 |
+| Especificidade | 0,8618 ± 0,0470 | 0,8068 ± 0,0810 | 0,8433 ± 0,0763 | **0,8636 ± 0,0688** |
+| Precisão | 0,8335 ± 0,0432 | 0,7689 ± 0,0722 | 0,8154 ± 0,0736 | **0,8341 ± 0,0729** |
+| F1 | **0,8128 ± 0,0391** | 0,7473 ± 0,0702 | 0,7942 ± 0,0663 | 0,8016 ± 0,0635 |
+| MCC | **0,6667 ± 0,0646** | 0,5504 ± 0,1155 | 0,6354 ± 0,1104 | 0,6524 ± 0,1052 |
+| ROC-AUC | **0,9100 ± 0,0215** | 0,8049 ± 0,0536 | 0,9021 ± 0,0302 | 0,8983 ± 0,0403 |
+| Brier | 0,1325 ± 0,0184 | 0,1767 ± 0,0363 | 0,1299 ± 0,0181 | **0,1293 ± 0,0292** |
+| Log Loss | 0,5170 ± 0,0876 | 0,6652 ± 0,4527 | **0,4095 ± 0,0443** | 0,4103 ± 0,0838 |
+| Acurácia balanceada | **0,8303 ± 0,0331** | 0,7715 ± 0,0585 | 0,8138 ± 0,0566 | 0,8216 ± 0,0530 |
+
+As configurações selecionadas variaram entre os folds, como se espera quando a seleção é refeita em cada treino externo:
+
+- Naive Bayes: Gaussiano em 13 folds e KDE em 2;
+- Árvore: `cp = 0,005`, profundidade 3 em 8 folds; `cp = 0,005`, profundidade 5 em 5; outras duas configurações em 1 fold cada;
+- Random Forest: as quatro configurações foram escolhidas entre 2 e 5 vezes;
+- SVM: custo 0,1 em 3 folds, custo 1 em 7 e custo 10 em 5.
+
+O ranking do MCC permaneceu igual ao da avaliação exploratória: Naive Bayes, SVM, Random Forest e Árvore. As diferenças entre o MCC antigo e o complementar foram pequenas: `-0,0026`, `-0,0038`, `-0,0075` e `-0,0057`, respectivamente. Assim, a reimplementação não mudou bruscamente a conclusão descritiva.
+
+#### 11.6.1 Comparações pareadas de MCC
+
+| Par, diferença A − B | Diferença média | IC marginal de 95% | p bruto | p Holm |
+|---|---:|---:|---:|---:|
+| Naive Bayes − Árvore | 0,1163 | [-0,0124; 0,2450] | 0,0730 | 0,4381 |
+| Naive Bayes − Random Forest | 0,0314 | [-0,0859; 0,1486] | 0,5753 | 1,0000 |
+| Naive Bayes − SVM | 0,0144 | [-0,0692; 0,0980] | 0,7174 | 1,0000 |
+| Árvore − Random Forest | -0,0849 | [-0,1828; 0,0129] | 0,0838 | 0,4381 |
+| Árvore − SVM | -0,1019 | [-0,2382; 0,0344] | 0,1310 | 0,5241 |
+| Random Forest − SVM | -0,0170 | [-0,1180; 0,0841] | 0,7240 | 1,0000 |
+
+O teste t corrigido usa a variância das 15 diferenças pareadas multiplicada por `1/15 + n_teste/n_treino`. A razão média teste/treino foi `0,2500`, e foram usados 14 graus de liberdade. A correção de Holm controla o erro familiar nas seis comparações. Nenhuma foi significativa a `α = 0,05`; consequentemente, H0 não foi rejeitada. Os intervalos acima são marginais e não simultâneos.
+
+Essa conclusão não estabelece equivalência. O tamanho pequeno da Cleveland, a variabilidade entre folds e o total de 15 avaliações limitam o poder para detectar diferenças pequenas. Os diagnósticos das diferenças não mostraram assimetrias extremas, mas o teste continua sendo uma aproximação para reamostragem dependente.
 
 ## 12. Resultados da base Kaggle
 
@@ -705,6 +732,8 @@ Observações importantes:
 
 ## 13. Comparação entre as duas bases
 
+Para manter protocolos equivalentes, a tabela entre bases usa a camada exploratória 5 × 3 em ambas. Os resultados aninhados da Cleveland não são misturados diretamente aos resultados não aninhados da Kaggle.
+
 | Algoritmo | Acurácia Cleveland | Acurácia Kaggle | MCC Cleveland | MCC Kaggle | ROC-AUC Cleveland | ROC-AUC Kaggle |
 |---|---:|---:|---:|---:|---:|---:|
 | Naive Bayes | 0,8361 | 0,7199 | 0,6694 | 0,4466 | 0,9056 | 0,7869 |
@@ -787,11 +816,11 @@ Um estudo que avaliou os mesmos tipos de algoritmos na Cleveland reportou:
 - SVM: 79,05%;
 - ensemble proposto: 88,24%.
 
-No presente projeto, os resultados foram 78,00%, 82,29%, 83,61% e 82,95%, respectivamente. Assim, os resultados estão dentro ou acima da faixa dos classificadores clássicos desse estudo. O ensemble permanece superior em acurácia.
+Na avaliação complementar deste projeto, os resultados foram 77,45%, 81,61%, 83,28% e 82,50%, respectivamente. Assim, permanecem próximos ou acima da faixa dos classificadores clássicos desse estudo. O ensemble publicado permanece superior em acurácia, mas a comparação não é direta porque os protocolos diferem.
 
 Fonte: [A Reliable Machine Intelligence Model for Accurate Identification of Cardiovascular Diseases Using Ensemble Techniques](https://pmc.ncbi.nlm.nih.gov/articles/PMC8923755/).
 
-Outro estudo reportou, na Cleveland, acurácia 0,84 e AUC 0,82 para um modelo desenvolvido manualmente, e acurácia 0,85 e AUC 0,93 para AutoML. O melhor resultado deste projeto, acurácia 0,8361 e AUC 0,9056, também se encontra nessa faixa.
+Outro estudo reportou, na Cleveland, acurácia 0,84 e AUC 0,82 para um modelo desenvolvido manualmente, e acurácia 0,85 e AUC 0,93 para AutoML. O melhor resultado complementar deste projeto, acurácia média por fold de 0,8328 e ROC-AUC de 0,9100, também se encontra nessa faixa.
 
 ### 16.2 Kaggle
 
@@ -829,6 +858,8 @@ Sim, para o objetivo delimitado do PIBIC. Os quatro algoritmos:
 - são encontrados como classificadores individuais ou baselines na literatura;
 - foram avaliados com as mesmas divisões e métricas;
 - possuem grades pequenas, transparentes e reprodutíveis;
+- na Cleveland complementar, a seleção interna foi separada da avaliação externa;
+- a comparação inferencial reconheceu o pareamento e corrigiu dependência e multiplicidade;
 - permitem discutir interpretabilidade, desempenho e custo computacional.
 
 Entretanto, a defesa científica exige limitar a conclusão:
@@ -844,20 +875,26 @@ Os resultados podem ser considerados bons como *baselines* acadêmicos. Na Cleve
 
 ## 18. Significância estatística
 
-### 18.1 O que pode ser afirmado atualmente
+### 18.1 Procedimento executado
 
-Pode-se afirmar que existem diferenças **descritivas** entre médias. Não se pode afirmar que essas diferenças sejam estatisticamente significativas.
+A inferência foi realizada apenas na avaliação complementar da Cleveland. O MCC foi definido como desfecho primário, e os quatro algoritmos compartilharam as mesmas 15 partições externas. Para cada um dos seis pares, calcularam-se as diferenças de MCC fold a fold e aplicou-se o teste t corrigido de Nadeau–Bengio.
 
-O desvio-padrão apresentado é calculado entre somente três repetições. Ele descreve estabilidade diante das três sementes, mas não é um intervalo de confiança e não deve ser usado sozinho como teste de hipótese.
+O erro-padrão foi calculado como `sqrt((1/n + n_teste/n_treino) × variância_das_diferenças)`, com `n = 15`, razão média teste/treino aproximadamente `0,25` e 14 graus de liberdade. Os seis p-valores bilaterais foram ajustados pelo método de Holm. Não se tratou os folds como observações independentes.
 
-Também não é correto aplicar diretamente um teste t ou ANOVA aos 15 folds como se fossem observações independentes. Os conjuntos de treino se sobrepõem e os mesmos pacientes aparecem repetidamente, violando a independência.
+### 18.2 O que pode ser afirmado
 
-### 18.2 Importância prática das diferenças observadas
+Nenhuma comparação foi significativa a `α = 0,05`. Os p-valores ajustados foram `0,4381`, `1,0000`, `1,0000`, `0,4381`, `0,5241` e `1,0000`. Assim, **H0 não foi rejeitada na Cleveland complementar**.
+
+Não rejeitar H0 não prova que os algoritmos sejam iguais. Significa que o experimento não forneceu evidência suficiente de diferença estatística, considerando a correção pela dependência e pelas seis comparações. O Naive Bayes liderou descritivamente, mas sua vantagem também não foi significativa.
+
+Na Kaggle, a análise continua descritiva. Não se deve extrapolar para ela o resultado inferencial da Cleveland.
+
+### 18.3 Importância prática das diferenças observadas
 
 Na Cleveland:
 
 - Naive Bayes, SVM e Random Forest formam um grupo relativamente próximo;
-- a Árvore fica de 4,29 a 5,61 pontos percentuais abaixo deles em acurácia;
+- a Árvore fica de 4,16 a 5,83 pontos percentuais abaixo deles em acurácia na avaliação complementar;
 - a distância de ROC-AUC entre Árvore e os três melhores é maior que as diferenças dentro do grupo superior.
 
 Na Kaggle:
@@ -867,22 +904,9 @@ Na Kaggle:
 - a vantagem de Random Forest sobre SVM é pequena demais para justificar, sozinha, uma conclusão forte;
 - o tamanho elevado da amostra pode tornar diferenças muito pequenas estatisticamente detectáveis, mas isso não as torna automaticamente relevantes na prática.
 
-### 18.3 Como testar formalmente no futuro
+### 18.4 Possíveis extensões futuras
 
-Caso a etapa inferencial seja exigida, recomenda-se definir antecipadamente:
-
-- MCC como desfecho primário;
-- nível de significância, por exemplo `α = 0,05`;
-- seis comparações par a par entre quatro algoritmos;
-- correção de Holm para múltiplas comparações;
-- configurações congeladas antes da análise confirmatória;
-- um procedimento que reconheça o emparelhamento e a dependência introduzida pela reamostragem.
-
-Alternativas defensáveis incluem:
-
-1. teste 5×2cv pareado de Dietterich para comparação de classificadores, com todo pré-processamento refeito dentro de cada treino;
-2. validação cruzada aninhada, deixando a seleção de hiperparâmetros no ciclo interno e a avaliação no ciclo externo;
-3. conjunto de teste realmente independente, com teste de McNemar para erros de classificação, DeLong para ROC-AUC e reamostragem pareada para métricas como MCC e F1.
+Uma confirmação mais forte exigiria amostra externa independente ou mais repetições definidas previamente. Em um teste externo, McNemar pode comparar erros de classificação, DeLong pode comparar ROC-AUC e reamostragem pareada pode fornecer incerteza para MCC e F1. Qualquer extensão deve manter a seleção de hiperparâmetros e o pré-processamento separados da avaliação final.
 
 Referências metodológicas:
 
@@ -892,9 +916,9 @@ Referências metodológicas:
 
 ## 19. Limitações metodológicas
 
-### 19.1 Validação não aninhada
+### 19.1 Dois níveis de evidência
 
-A mesma validação cruzada é usada para selecionar a configuração e estimar seu desempenho. Isso pode gerar otimismo de seleção. A grade pequena reduz a oportunidade de sobreajuste em relação a buscas extensas, mas não elimina o problema.
+A avaliação complementar da Cleveland é aninhada e separa seleção e teste externo. A avaliação exploratória antiga e toda a análise Kaggle permanecem não aninhadas: nelas, a mesma CV participa da seleção e do resumo. Esses resultados continuam úteis de forma descritiva, mas não entram na inferência complementar.
 
 ### 19.2 Apenas três repetições
 
@@ -932,7 +956,7 @@ As conclusões não abrangem toda combinação possível de hiperparâmetros, ke
 
 ## 20. Arquivos de resultados
 
-Cada algoritmo produz cinco CSVs em `results/csvs/`:
+Na camada exploratória, cada algoritmo produz cinco CSVs em `results/csvs/`:
 
 1. `*_cv_resultados_configuracoes.csv`: uma linha por configuração e repetição, com métricas e tempo;
 2. `*_cv_ranking_configuracoes.csv`: médias das configurações ordenadas pelo critério de seleção;
@@ -957,6 +981,19 @@ O arquivo de previsões OOF contém:
 - classe real;
 - probabilidade de doença;
 - classe prevista.
+
+Na avaliação complementar, cada algoritmo produz oito CSVs em `results/cleveland_ncv_5x3_inner3_v1/csvs/`:
+
+1. `*_ncv_metricas_internas.csv`: uma linha por configuração e fold interno;
+2. `*_ncv_ranking_interno.csv`: ranking dentro de cada treino externo;
+3. `*_ncv_resultados_folds.csv`: métricas dos 15 testes externos;
+4. `*_ncv_configuracoes_selecionadas.csv`: escolha de cada fold externo;
+5. `*_ncv_frequencia_configuracoes.csv`: frequência das escolhas;
+6. `*_ncv_predicoes_oof.csv`: 909 previsões externas;
+7. `*_ncv_resumo_modelo.csv`: média e DP dos 15 folds externos;
+8. `*_ncv_resultados_repeticoes_oof.csv`: métricas OOF reunidas por repetição.
+
+O subdiretório `inferencia/` contém diferenças fold a fold, seis comparações pareadas e a decisão global. `manifest/` contém a validação de integridade, versões e assinaturas; `partitions/` contém os folds e as sementes. Checkpoints RDS são artefatos locais de retomada.
 
 ## 21. Gráficos
 
@@ -984,7 +1021,7 @@ Cada imagem possui:
 - escala entre 0 e 1 para as oito métricas de classificação e discriminação;
 - indicação de que Brier, Log Loss e tempo são melhores quando menores.
 
-As imagens comparativas das duas bases já existem. Os 11 gráficos da Kaggle foram gerados em 6 de setembro de 2026 a partir dos quatro resumos oficiais, executando `src/compare_models.r` na pasta `Kaggle`.
+As imagens comparativas das duas bases já existem. Os 11 gráficos da Kaggle foram gerados em 6 de setembro de 2026 a partir dos quatro resumos exploratórios oficiais. A Cleveland complementar acrescenta 11 gráficos de métricas, um gráfico das seis diferenças médias de MCC com intervalos marginais e 12 diagnósticos — série e Q-Q para cada par.
 
 ## 22. Dependências e ambiente
 
@@ -1010,15 +1047,20 @@ Uma execução registrada utilizou:
 
 ### 23.1 Cleveland
 
-A partir da pasta `Clevand`:
+A partir da pasta `Clevand`, para reproduzir a avaliação complementar:
 
 ```powershell
-Rscript src/naive_bayes.r
-Rscript src/decision_trees.r
-Rscript src/random_forest.r
-Rscript src/svm.r
-Rscript src/compare_models.r
+Rscript src/nested/prepare_experiment.r
+Rscript src/nested/run_naive_bayes.r
+Rscript src/nested/run_decision_trees.r
+Rscript src/nested/run_random_forest.r
+Rscript src/nested/run_svm.r
+Rscript src/nested/validate_results.r
+Rscript src/nested/statistical_analysis.r
+Rscript src/nested/compare_models.r
 ```
+
+Os scripts `src/naive_bayes.r`, `src/decision_trees.r`, `src/random_forest.r`, `src/svm.r` e `src/compare_models.r` permanecem disponíveis para reproduzir a etapa exploratória original.
 
 ### 23.2 Kaggle
 
@@ -1039,21 +1081,23 @@ A SVM da Kaggle é, de longe, a etapa mais demorada. Antes de repeti-la, deve-se
 ## 24. Conclusões finais
 
 1. Os quatro algoritmos são cientificamente adequados para uma comparação acadêmica em um projeto PIBIC.
-2. O protocolo 5-fold repetido 3 vezes é um compromisso razoável entre robustez e custo computacional.
-3. Na Cleveland, o Naive Bayes apresentou o melhor desempenho descritivo geral.
-4. Na Kaggle, a Random Forest apresentou o melhor desempenho descritivo, mas ficou praticamente empatada com a SVM.
-5. A Árvore de Decisão foi mais rápida e interpretável, porém apresentou menor capacidade discriminativa.
-6. A SVM da Kaggle apresentou custo computacional desproporcional à pequena diferença observada.
-7. O pré-processamento atual é suficiente para a análise principal; não há justificativa para uma limpeza mais agressiva orientada por desempenho.
-8. Os resultados são plausíveis e compatíveis com estudos publicados.
-9. Os resultados não validam uso clínico e não demonstram capacidade de generalização externa.
-10. Não há base estatística, no estágio atual, para declarar diferença significativa entre os algoritmos.
-11. H0 não foi rejeitada.
-12. A hipótese direcional de que a Random Forest seria consistentemente superior não foi confirmada.
+2. O protocolo exploratório 5-fold repetido 3 vezes é um compromisso razoável entre informação e custo computacional.
+3. A avaliação complementar aninhada da Cleveland separa seleção e avaliação e concluiu 735 ajustes em poucos segundos.
+4. Na Cleveland, o Naive Bayes apresentou o melhor desempenho descritivo geral, com MCC externo médio de `0,6667`.
+5. Na Kaggle, a Random Forest apresentou o melhor desempenho descritivo, mas ficou praticamente empatada com a SVM.
+6. A Árvore de Decisão é mais interpretável, porém apresentou menor capacidade discriminativa.
+7. A SVM da Kaggle apresentou custo computacional desproporcional à pequena diferença observada.
+8. O pré-processamento atual é suficiente; não há justificativa para limpeza mais agressiva orientada por desempenho.
+9. Os resultados complementares ficaram próximos dos exploratórios e mantiveram o mesmo ranking de MCC.
+10. Nenhuma das seis comparações de MCC foi significativa após Holm; H0 não foi rejeitada na Cleveland complementar.
+11. A não rejeição de H0 não demonstra equivalência entre os algoritmos.
+12. A hipótese direcional de superioridade da Random Forest não foi corroborada.
+13. A inferência não foi estendida à Kaggle por limitação computacional; seus resultados são descritivos.
+14. Os resultados não validam uso clínico e não demonstram generalização externa.
 
 ## 25. Texto resumido reutilizável
 
-> Foram avaliados os algoritmos Naive Bayes, Árvore de Decisão, Random Forest e SVM linear nas bases Cleveland Heart Disease e Cardiovascular Disease Dataset do Kaggle. Utilizou-se validação cruzada estratificada de cinco folds repetida três vezes, com sementes fixas, divisões idênticas entre algoritmos, limiar de 0,5 e pré-processamento aprendido exclusivamente nos conjuntos de treino. As configurações foram selecionadas pelo MCC médio, com desempate por F1 e ROC-AUC. Na Cleveland, o Naive Bayes Gaussiano obteve o melhor desempenho descritivo, com acurácia de 0,8361, MCC de 0,6694 e ROC-AUC de 0,9056. Na Kaggle, a Random Forest com 500 árvores e mtry 3 apresentou acurácia de 0,7300, MCC de 0,4607 e ROC-AUC de 0,7928, ficando muito próxima da SVM. Os resultados foram compatíveis com estudos publicados para as mesmas bases. Entretanto, a validação não foi aninhada, não houve conjunto externo e não foi executado teste inferencial específico entre algoritmos. Assim, a hipótese nula não foi rejeitada e a hipótese de superioridade consistente da Random Forest não foi confirmada.
+> Foram avaliados Naive Bayes, Árvore de Decisão, Random Forest e SVM linear nas bases Cleveland e Cardiovascular Disease Dataset do Kaggle. A etapa exploratória usou validação cruzada estratificada de cinco folds repetida três vezes. Na Cleveland foi acrescentada validação cruzada aninhada, com os mesmos 5 × 3 folds no ciclo externo e três folds internos para seleção por MCC. O pré-processamento foi aprendido somente nos treinos. O Naive Bayes obteve o maior MCC externo médio na Cleveland (`0,6667`), seguido por SVM (`0,6524`), Random Forest (`0,6354`) e Árvore (`0,5504`). As seis diferenças pareadas de MCC foram analisadas pelo teste t corrigido de Nadeau–Bengio e por Holm; nenhuma foi significativa (`menor p ajustado = 0,4381`). H0 não foi rejeitada, sem que isso implique equivalência, e a hipótese direcional de superioridade da Random Forest não foi corroborada. Na Kaggle descritiva, Random Forest e SVM permaneceram muito próximas. O estudo não constitui validação clínica ou externa.
 
 ## 26. Referências principais
 

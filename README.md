@@ -1,172 +1,173 @@
 # Predição de doença cardíaca com aprendizado de máquina
 
-Projeto de Iniciação Científica (PIBIC 2026) que compara quatro algoritmos de
-aprendizado de máquina na identificação de doença cardíaca a partir de dados
-clínicos. O foco do trabalho é manter uma avaliação reprodutível, compreensível
-e viável em computadores pessoais.
+Projeto de Iniciação Científica (PIBIC 2026) que compara Naive Bayes, Árvore
+de Decisão, Random Forest e SVM linear na classificação binária de doença
+cardíaca. O repositório contém uma análise exploratória original e uma
+avaliação complementar mais rigorosa, baseada em validação cruzada aninhada.
 
-> Este projeto possui finalidade acadêmica. Os modelos não foram desenvolvidos
-> nem validados para diagnóstico ou tomada de decisão clínica.
+> Este é um estudo acadêmico retrospectivo. Os modelos não foram validados
+> para diagnóstico ou tomada de decisão clínica.
 
-## Objetivo
+## Resultado principal
 
-Comparar o desempenho de:
+Na avaliação complementar da base Cleveland, o Naive Bayes obteve o maior MCC
+médio (`0,6667`), seguido por SVM (`0,6524`), Random Forest (`0,6354`) e Árvore
+de Decisão (`0,5504`). As seis comparações pareadas bilaterais de MCC foram
+avaliadas com o teste t corrigido de Nadeau–Bengio e correção de Holm. Nenhuma
+foi significativa a `α = 0,05`; o menor p-valor ajustado foi `0,4381`.
 
-1. Naive Bayes;
-2. Árvore de Decisão;
-3. Random Forest;
-4. Support Vector Machine (SVM).
+Portanto, **H0 não foi rejeitada** na análise complementar da Cleveland. Isso
+significa ausência de evidência suficiente de diferença estatística sob este
+protocolo, e não prova de igualdade entre os algoritmos. A hipótese direcional
+de que a Random Forest apresentaria o melhor desempenho também não foi
+corroborada: ela não liderou o MCC na Cleveland.
 
-A comparação utiliza o mesmo conjunto de dados, os mesmos folds e as mesmas
-métricas para todos os algoritmos. A classe original `num` foi transformada em
-um problema binário:
+| Algoritmo | Acurácia | F1 | MCC | ROC-AUC |
+|---|---:|---:|---:|---:|
+| **Naive Bayes** | **0,8328 ± 0,0304** | **0,8128 ± 0,0391** | **0,6667 ± 0,0646** | **0,9100 ± 0,0215** |
+| Árvore de Decisão | 0,7745 ± 0,0566 | 0,7473 ± 0,0702 | 0,5504 ± 0,1155 | 0,8049 ± 0,0536 |
+| Random Forest | 0,8161 ± 0,0545 | 0,7942 ± 0,0663 | 0,6354 ± 0,1104 | 0,9021 ± 0,0302 |
+| SVM linear | 0,8250 ± 0,0512 | 0,8016 ± 0,0635 | 0,6524 ± 0,1052 | 0,8983 ± 0,0403 |
+
+Os valores são média ± desvio-padrão dos 15 folds externos. O desvio-padrão é
+descritivo e não é intervalo de confiança.
+
+## Base Cleveland
+
+O subconjunto Cleveland da base [Heart Disease, da UCI Machine Learning
+Repository](https://archive.ics.uci.edu/dataset/45/heart+disease) possui 303
+registros, 13 preditores, 164 casos `sem_doenca` e 139 casos `doenca`. A classe
+original foi binarizada desta forma:
 
 - `sem_doenca`: `num = 0`;
 - `doenca`: `num > 0`.
 
-## Base de dados
+Há quatro ausências em `vasos_principais` e duas em `thal`. Na Random Forest e
+na SVM, as modas são aprendidas somente no conjunto de treino correspondente.
+Na SVM, média e desvio-padrão das variáveis numéricas também são aprendidos
+somente no treino. Naive Bayes e `rpart` utilizam o tratamento de ausências dos
+respectivos pacotes. Nenhum registro foi removido.
 
-O projeto utiliza o subconjunto Cleveland da base [Heart Disease, da UCI
-Machine Learning Repository](https://archive.ics.uci.edu/dataset/45/heart+disease),
-com 303 registros e 13 variáveis preditoras. A importação é feita diretamente
-pelo identificador oficial da base:
+## Desenho experimental
 
-```r
-base_uci <- ucimlrepo::fetch_ucirepo(id = 45)
-```
+### Avaliação complementar — protocolo principal para inferência
 
-As variáveis receberam nomes em português para facilitar a leitura do código.
-Existem seis valores ausentes: quatro em `vasos_principais` e dois em
-`talassemia`.
+O protocolo `cleveland_ncv_5x3_inner3_v1` usa:
 
-- Naive Bayes e Árvore de Decisão usam o tratamento nativo dos respectivos
-  pacotes.
-- Random Forest e SVM aprendem a moda somente no fold de treino e aplicam o
-  valor aprendido ao fold de teste.
-- A padronização usada pela SVM também é calculada exclusivamente no treino.
+- 5 folds externos estratificados, repetidos com 3 sementes;
+- 3 folds internos estratificados em cada conjunto de treino externo;
+- as mesmas partições para todos os algoritmos;
+- seleção interna pela maior média de MCC;
+- desempate por F1, ROC-AUC e identificador da configuração;
+- reajuste no treino externo completo e avaliação uma única vez no teste
+  externo intocado;
+- limiar de classificação fixo em `0,5`;
+- 15 resultados externos pareados e 909 previsões OOF por algoritmo.
 
-Assim, informações do conjunto de teste não são utilizadas no
-pré-processamento do treino.
-
-## Metodologia de avaliação
-
-Foi utilizada validação cruzada estratificada **5-fold repetida 3 vezes**:
-
-- sementes `20260804`, `20260805` e `20260806`;
-- mesmos folds para os quatro algoritmos;
-- classe positiva `doenca`;
-- limiar de classificação fixo em 0,5;
-- métricas calculadas sobre as predições fora da amostra dos 303 pacientes;
-- resultado apresentado como média ± desvio-padrão das três repetições.
-
-A configuração de cada algoritmo é selecionada pela maior média de MCC, com
-desempate por F1, ROC-AUC e identificador da configuração.
+As sementes, partições e assinaturas dos dados e do código ficam registradas
+nos manifestos. Imputação e padronização são refeitas dentro de cada treino,
+evitando que o fold de validação ou teste informe o pré-processamento.
 
 ### Configurações avaliadas
 
-| Algoritmo | Configurações |
+| Algoritmo | Grade |
 |---|---|
-| Naive Bayes | Gaussiano e KDE, ambos com `laplace = 1`. |
-| Árvore de Decisão | Gini; `cp` de 0,005, 0,01 ou 0,02; profundidade máxima 3 ou 5. |
-| Random Forest | 300 ou 500 árvores; `mtry` igual a 3 ou 4. |
-| SVM | Kernel linear; custo igual a 0,1, 1 ou 10. |
+| Naive Bayes | Gaussiano e KDE; `laplace = 1`; KDE com `adjust = 1`. |
+| Árvore de Decisão | Gini; `cp` 0,005, 0,01 ou 0,02; profundidade 3 ou 5. |
+| Random Forest | 300 ou 500 árvores; `mtry` 3 ou 4. |
+| SVM | Kernel linear; custo 0,1, 1 ou 10. |
 
-### Custo computacional
+### Custo computacional da avaliação complementar
 
-| Algoritmo | Configurações | Folds | Repetições | Ajustes |
+Cada configuração é ajustada em 3 folds internos para cada um dos 15 folds
+externos. Depois da seleção, há um reajuste externo por fold.
+
+| Algoritmo | Configurações | Ajustes internos | Reajustes externos | Total |
 |---|---:|---:|---:|---:|
-| Naive Bayes | 2 | 5 | 3 | 30 |
-| Árvore de Decisão | 6 | 5 | 3 | 90 |
-| Random Forest | 4 | 5 | 3 | 60 |
-| SVM | 3 | 5 | 3 | 45 |
-| **Total** |  |  |  | **225** |
+| Naive Bayes | 2 | 90 | 15 | 105 |
+| Árvore de Decisão | 6 | 270 | 15 | 285 |
+| Random Forest | 4 | 180 | 15 | 195 |
+| SVM | 3 | 135 | 15 | 150 |
+| **Projeto Cleveland complementar** |  | **675** | **60** | **735** |
 
-Esse protocolo substitui avaliações anteriores mais pesadas e permite que o
-projeto seja executado com rapidez na base Cleveland. O custo deverá ser medido
-novamente quando o estudo for aplicado à base futura de aproximadamente 70 mil
-registros.
+Na execução de 7 de setembro de 2026, todos os quatro algoritmos terminaram em
+poucos segundos na Cleveland. Os tempos servem para auditoria desta máquina,
+não para comparação universal de eficiência.
 
-## Resultados oficiais
+## Resultados completos da avaliação complementar
 
-Os valores abaixo foram obtidos nas execuções realizadas pelo pesquisador. O
-desvio-padrão representa a variação descritiva entre as três repetições.
-
-| Algoritmo | Acurácia | Sensibilidade | Especificidade | Precisão | F1 | MCC | ROC-AUC |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| **Naive Bayes** | **0,8361 ± 0,0050** | **0,8010 ± 0,0042** | **0,8659 ± 0,0061** | **0,8350 ± 0,0069** | **0,8176 ± 0,0053** | **0,6694 ± 0,0102** | **0,9056 ± 0,0008** |
-| Árvore de Decisão | 0,7800 ± 0,0019 | 0,7410 ± 0,0144 | 0,8130 ± 0,0127 | 0,7707 ± 0,0086 | 0,7555 ± 0,0039 | 0,5561 ± 0,0037 | 0,8092 ± 0,0119 |
-| Random Forest | 0,8229 ± 0,0182 | 0,7914 ± 0,0144 | 0,8496 ± 0,0231 | 0,8171 ± 0,0250 | 0,8040 ± 0,0187 | 0,6428 ± 0,0365 | 0,8971 ± 0,0058 |
-| SVM | 0,8295 ± 0,0069 | 0,7914 ± 0,0072 | 0,8618 ± 0,0186 | 0,8295 ± 0,0177 | 0,8099 ± 0,0048 | 0,6562 ± 0,0138 | 0,8969 ± 0,0035 |
-
-### Métricas probabilísticas e tempo
-
-Em Brier Score e Log Loss, valores menores indicam probabilidades mais bem
-ajustadas. O tempo é a média necessária para avaliar uma configuração nos cinco
-folds de uma repetição, não o tempo total do script.
-
-| Algoritmo | Acurácia balanceada | Brier Score | Log Loss | Tempo médio |
+| Métrica | Naive Bayes | Árvore | Random Forest | SVM |
 |---|---:|---:|---:|---:|
-| Naive Bayes | **0,8334** | 0,1319 | 0,5164 | 0,0351 s |
-| Árvore de Decisão | 0,7770 | 0,1744 | 0,5487 | **0,0263 s** |
-| Random Forest | 0,8205 | 0,1295 | 0,4072 | 0,1642 s |
-| SVM | 0,8266 | **0,1256** | **0,3990** | 0,0608 s |
+| Acurácia | **0,8328 ± 0,0304** | 0,7745 ± 0,0566 | 0,8161 ± 0,0545 | 0,8250 ± 0,0512 |
+| Sensibilidade | **0,7989 ± 0,0813** | 0,7363 ± 0,1103 | 0,7843 ± 0,1087 | 0,7797 ± 0,1009 |
+| Especificidade | 0,8618 ± 0,0470 | 0,8068 ± 0,0810 | 0,8433 ± 0,0763 | **0,8636 ± 0,0688** |
+| Precisão | 0,8335 ± 0,0432 | 0,7689 ± 0,0722 | 0,8154 ± 0,0736 | **0,8341 ± 0,0729** |
+| F1 | **0,8128 ± 0,0391** | 0,7473 ± 0,0702 | 0,7942 ± 0,0663 | 0,8016 ± 0,0635 |
+| MCC | **0,6667 ± 0,0646** | 0,5504 ± 0,1155 | 0,6354 ± 0,1104 | 0,6524 ± 0,1052 |
+| ROC-AUC | **0,9100 ± 0,0215** | 0,8049 ± 0,0536 | 0,9021 ± 0,0302 | 0,8983 ± 0,0403 |
+| Brier | 0,1325 ± 0,0184 | 0,1767 ± 0,0363 | 0,1299 ± 0,0181 | **0,1293 ± 0,0292** |
+| Log Loss | 0,5170 ± 0,0876 | 0,6652 ± 0,4527 | **0,4095 ± 0,0443** | 0,4103 ± 0,0838 |
+| Acurácia balanceada | **0,8303 ± 0,0331** | 0,7715 ± 0,0585 | 0,8138 ± 0,0566 | 0,8216 ± 0,0530 |
 
-### Configurações selecionadas
+Em Brier e Log Loss, valores menores são melhores. Os destaques são apenas
+descritivos.
 
-| Algoritmo | Configuração selecionada |
-|---|---|
-| Naive Bayes | Gaussiano, `laplace = 1`. |
-| Árvore de Decisão | `cp = 0,01`, profundidade máxima 5. |
-| Random Forest | 500 árvores, `mtry = 4`. |
-| SVM | Kernel linear, custo 1. |
+### Comparações pareadas de MCC
 
-### Interpretação
+| Par, diferença A − B | Diferença média | IC marginal de 95% | p bruto | p Holm |
+|---|---:|---:|---:|---:|
+| Naive Bayes − Árvore | 0,1163 | [-0,0124; 0,2450] | 0,0730 | 0,4381 |
+| Naive Bayes − Random Forest | 0,0314 | [-0,0859; 0,1486] | 0,5753 | 1,0000 |
+| Naive Bayes − SVM | 0,0144 | [-0,0692; 0,0980] | 0,7174 | 1,0000 |
+| Árvore − Random Forest | -0,0849 | [-0,1828; 0,0129] | 0,0838 | 0,4381 |
+| Árvore − SVM | -0,1019 | [-0,2382; 0,0344] | 0,1310 | 0,5241 |
+| Random Forest − SVM | -0,0170 | [-0,1180; 0,0841] | 0,7240 | 1,0000 |
 
-O Naive Bayes apresentou o melhor resultado descritivo geral, com as maiores
-médias de acurácia, F1, MCC e ROC-AUC. A SVM ficou próxima nas métricas de
-classificação e apresentou os menores Brier Score e Log Loss. A Random Forest
-também obteve desempenho competitivo, enquanto a Árvore de Decisão apresentou
-resultados inferiores, mas mantém como vantagem a interpretação mais direta de
-suas regras.
+Os intervalos são marginais, enquanto a decisão familiar usa os p-valores
+ajustados por Holm. Como os folds de validação cruzada se sobrepõem, o teste
+aplica a correção de variância de Nadeau–Bengio, com razão média
+teste/treino de aproximadamente `0,25` e 14 graus de liberdade. Com somente 15
+avaliações e 303 participantes, o poder estatístico é limitado.
 
-Essas diferenças não devem ser interpretadas como prova de superioridade
-estatística. A validação é repetida simples, não aninhada, e a mesma CV participa
-da escolha da configuração e da estimativa de desempenho. Isso pode gerar algum
-otimismo nos resultados.
+## Relação com a análise exploratória anterior
 
-## Métricas calculadas
+Os scripts em `src/` preservam a primeira avaliação 5-fold × 3, não aninhada.
+Ela produziu MCCs de `0,6694`, `0,5561`, `0,6428` e `0,6562` para Naive Bayes,
+Árvore, Random Forest e SVM, respectivamente. A avaliação aninhada produziu
+`0,6667`, `0,5504`, `0,6354` e `0,6524`. A proximidade e a manutenção do ranking
+indicam que o novo desenho não alterou bruscamente a interpretação descritiva;
+ele separou corretamente seleção e avaliação e acrescentou uma inferência
+pareada apropriada ao desenho.
 
-- Acurácia;
-- Sensibilidade;
-- Especificidade;
-- Precisão;
-- F1;
-- Matthews Correlation Coefficient (MCC);
-- ROC-AUC;
-- Acurácia balanceada;
-- Brier Score;
-- Log Loss;
-- Tempo de execução.
+A base Kaggle permanece como análise descritiva na pasta irmã `Kaggle`. Ela
+não recebeu a validação aninhada devido ao custo computacional, especialmente
+da SVM. Seus números não entram no teste de hipótese complementar da Cleveland.
 
-O MCC é a métrica principal de seleção porque considera simultaneamente os
-quatro componentes da matriz de confusão e permanece informativo mesmo quando
-há desequilíbrio entre as classes.
+## Como reproduzir
 
-## Dependências
+Execute a partir da pasta `Clevand`:
 
-- R;
-- `ucimlrepo`;
-- `naivebayes`;
-- `rpart`;
-- `ranger`;
-- `e1071`.
+```powershell
+Rscript src/nested/prepare_experiment.r
+Rscript src/nested/run_naive_bayes.r
+Rscript src/nested/run_decision_trees.r
+Rscript src/nested/run_random_forest.r
+Rscript src/nested/run_svm.r
+Rscript src/nested/validate_results.r
+Rscript src/nested/statistical_analysis.r
+Rscript src/nested/compare_models.r
+```
 
-Os scripts pressupõem que esses pacotes já estejam instalados e não executam
-`install.packages()` automaticamente.
+O primeiro script baixa a base UCI pelo identificador `45`, prepara os dados e
+congela folds e sementes. Os quatro seguintes podem ser executados
+separadamente. A validação deve passar antes da análise estatística. A última
+etapa gera 11 gráficos de métricas e um gráfico das comparações pareadas.
 
-## Como executar
+Arquivos `.rds` são utilizados localmente para o instantâneo preparado e para
+checkpoints de retomada, mas não representam um modelo final para uso clínico e
+estão ignorados pelo Git.
 
-Execute os comandos a partir da raiz do projeto:
+Para reproduzir apenas a etapa exploratória preservada:
 
 ```powershell
 Rscript src/naive_bayes.r
@@ -176,62 +177,57 @@ Rscript src/svm.r
 Rscript src/compare_models.r
 ```
 
-Os quatro primeiros scripts avaliam os algoritmos e salvam os resultados
-numéricos. O último lê os resumos oficiais e gera os gráficos comparativos.
-
-## Estrutura do projeto
+## Estrutura principal
 
 ```text
 src/
-  heart_disease_data.r   # Importação e preparação da base
-  common_evaluation.r    # Folds, métricas e funções compartilhadas
-  naive_bayes.r          # Avaliação do Naive Bayes
-  decision_trees.r       # Avaliação da Árvore de Decisão
-  random_forest.r        # Avaliação da Random Forest
-  svm.r                  # Avaliação da SVM
-  compare_models.r       # Gráficos comparativos
+  *.r                         # análise exploratória preservada
+  nested/
+    prepare_experiment.r      # dados, folds e sementes congelados
+    run_*.r                   # quatro avaliações aninhadas
+    validate_results.r        # integridade e pareamento
+    statistical_analysis.r    # teste corrigido e Holm
+    compare_models.r          # gráficos complementares
 docs/
-  DOCUMENTACAO_NAIVE_BAYES.md
-  DOCUMENTACAO_DECISION_TREES.md
-  DOCUMENTACAO_RANDOM_FOREST.md
-  DOCUMENTACAO_SVM.md
+  DOCUMENTACAO_*.md
+  RELATORIO_COMPLETO_PROJETO.md
 results/
-  csvs/                  # Tabelas geradas pelas execuções
-  imagens/               # Gráficos comparativos em PNG
+  csvs/ e imagens/            # resultados exploratórios
+  cleveland_ncv_5x3_inner3_v1/
+    csvs/                     # métricas internas, externas e OOF
+    inferencia/               # comparações pareadas de MCC
+    imagens/                  # gráficos e diagnósticos
+    manifest/                 # versões, assinaturas e auditoria
+    partitions/               # folds e sementes
 ```
 
-Cada algoritmo produz cinco arquivos CSV:
+## Dependências
 
-- resultados de todas as configurações;
-- ranking das configurações;
-- resultados das três repetições;
-- resumo do modelo selecionado;
-- predições fora da amostra.
+- R 4.5.1 na execução registrada;
+- `ucimlrepo`;
+- `naivebayes`;
+- `rpart`;
+- `ranger`;
+- `e1071`.
 
-O script de comparação gera um PNG separado para cada métrica, com média,
-desvio-padrão, cores consistentes e resolução de 2400 × 1600 pixels a 240 dpi.
-
-## Documentação detalhada
-
-- [Naive Bayes](docs/DOCUMENTACAO_NAIVE_BAYES.md)
-- [Árvore de Decisão](docs/DOCUMENTACAO_DECISION_TREES.md)
-- [Random Forest](docs/DOCUMENTACAO_RANDOM_FOREST.md)
-- [SVM](docs/DOCUMENTACAO_SVM.md)
+Os scripts pressupõem que os pacotes já estejam instalados e não executam
+`install.packages()` automaticamente.
 
 ## Limitações
 
-- A base Cleveland possui apenas 303 registros.
-- A escolha de configuração e a estimativa de desempenho usam a mesma
-  validação cruzada.
-- As três repetições não são amostras independentes; portanto, o desvio-padrão
-  não deve ser convertido diretamente em intervalo de confiança.
-- Os resultados ainda precisam ser avaliados na base maior planejada para a
-  continuidade da pesquisa.
-- O estudo avalia desempenho preditivo acadêmico e não validade clínica.
+- A Cleveland contém apenas 303 registros e não representa validação externa.
+- A correção de Nadeau–Bengio é uma aproximação para a dependência dos folds.
+- Quinze avaliações fornecem poder limitado para diferenças pequenas.
+- O teste formal foi executado somente na Cleveland; a Kaggle é descritiva.
+- O limiar `0,5` não foi otimizado por custos clínicos.
+- As grades são pequenas e a SVM avaliada usa apenas kernel linear.
+- Não foram avaliadas calibração clínica, utilidade decisória ou transporte
+  para outros hospitais e populações.
 
-## Reprodutibilidade
+## Documentação
 
-Os folds são estratificados e determinados por sementes fixas. Todos os
-algoritmos recebem as mesmas divisões, e qualquer imputação ou padronização é
-aprendida apenas no conjunto de treino. Essas decisões permitem repetir o
-experimento e comparar os modelos sob o mesmo protocolo.
+- [Relatório completo](docs/RELATORIO_COMPLETO_PROJETO.md)
+- [Naive Bayes](docs/DOCUMENTACAO_NAIVE_BAYES.md)
+- [Árvore de Decisão](docs/DOCUMENTACAO_DECISION_TREES.md)
+- [Random Forest](docs/DOCUMENTACAO_RANDOM_FOREST.md)
+- [SVM linear](docs/DOCUMENTACAO_SVM.md)

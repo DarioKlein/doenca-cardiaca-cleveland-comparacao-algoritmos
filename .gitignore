@@ -1,6 +1,7 @@
 # Artefatos gerados pelas execucoes dos modelos
 results/
 models/
+dataset/nested/*.rds
 
 # Instrucoes locais para agentes de desenvolvimento
 AGENTS.md

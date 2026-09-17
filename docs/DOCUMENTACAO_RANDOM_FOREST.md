@@ -1,52 +1,69 @@
 # Random Forest
 
-## Configuracoes
+## Implementação
 
-O script `src/random_forest.r` usa `ranger`, criterio de Gini, 300 ou 500
-arvores e `mtry` 3 ou 4. A execucao usa duas threads. As modas para valores
-ausentes sao aprendidas novamente dentro de cada treino.
+A implementação usa `ranger`, árvores com critério de Gini, `min.node.size =
+5`, 300 ou 500 árvores e `mtry` igual a 3 ou 4. Cada ajuste usa uma thread para
+manter a execução determinística e evitar paralelismo aninhado. As modas de
+`vasos_principais` e `thal` são aprendidas somente no treino correspondente.
 
-## Validacao
+## Validação aninhada
 
-`4 configuracoes x 5 folds x 3 repeticoes = 60 ajustes`.
+O script `src/nested/run_random_forest.r` usa 5 folds externos repetidos 3
+vezes e 3 folds internos. A seleção é feita pelo MCC médio interno e o teste
+externo permanece intocado até o reajuste final daquele fold.
 
-Em cada repeticao, as previsoes fora da amostra dos cinco folds sao reunidas e
-as metricas sao calculadas sobre os 303 pacientes. A configuracao e escolhida
-pelo MCC medio das tres repeticoes.
+O custo é `15 × (4 × 3 + 1) = 195` ajustes: 180 internos e 15 reajustes
+externos. Foram produzidas 909 previsões OOF.
 
-## Resultados oficiais
+## Resultado complementar
 
-Execucao realizada pelo pesquisador em **22/08/2026**. Os 60 ajustes e as 909
-predicoes fora da amostra foram conferidos nos CSVs.
+Execução concluída em 7 de setembro de 2026. A seleção variou entre todas as
+configurações, mostrando que a amostra pequena não determina um único conjunto
+de hiperparâmetros com grande estabilidade.
 
-A configuracao selecionada usa **500 arvores** e `mtry = 4`. Seu MCC medio foi
-0,6428; a configuracao seguinte, com 300 arvores e `mtry = 4`, obteve 0,6384.
-
-| Metrica | Media ± DP |
+| Configuração | Frequência |
 |---|---:|
-| Acuracia | 0,8229 ± 0,0182 |
-| Sensibilidade | 0,7914 ± 0,0144 |
-| Especificidade | 0,8496 ± 0,0231 |
-| Precisao | 0,8171 ± 0,0250 |
-| F1 | 0,8040 ± 0,0187 |
-| MCC | 0,6428 ± 0,0365 |
-| ROC-AUC | 0,8971 ± 0,0058 |
-| Brier Score | 0,1295 ± 0,0039 |
-| Log Loss | 0,4072 ± 0,0099 |
-| Acuracia balanceada | 0,8205 ± 0,0178 |
-| Tempo da configuracao por repeticao | 0,1642 ± 0,0039 s |
+| 300 árvores, `mtry = 3` | 4 |
+| 300 árvores, `mtry = 4` | 2 |
+| 500 árvores, `mtry = 3` | 5 |
+| 500 árvores, `mtry = 4` | 4 |
 
-| Repeticao | Acuracia | F1 | MCC | ROC-AUC |
+| Métrica | Média ± DP dos 15 folds externos |
+|---|---:|
+| Acurácia | 0,8161 ± 0,0545 |
+| Sensibilidade | 0,7843 ± 0,1087 |
+| Especificidade | 0,8433 ± 0,0763 |
+| Precisão | 0,8154 ± 0,0736 |
+| F1 | 0,7942 ± 0,0663 |
+| **MCC** | **0,6354 ± 0,1104** |
+| ROC-AUC | 0,9021 ± 0,0302 |
+| Brier Score | 0,1299 ± 0,0181 |
+| Log Loss | 0,4095 ± 0,0443 |
+| Acurácia balanceada | 0,8138 ± 0,0566 |
+| Tempo total por fold externo | 0,4816 ± 0,1553 s |
+
+As métricas OOF reunidas por repetição foram:
+
+| Repetição | Acurácia | F1 | MCC | ROC-AUC |
 |---:|---:|---:|---:|---:|
-| 1 | 0,8317 | 0,8118 | 0,6605 | 0,9026 |
-| 2 | 0,8350 | 0,8175 | 0,6672 | 0,8975 |
-| 3 | 0,8020 | 0,7826 | 0,6009 | 0,8911 |
+| 1 | 0,8416 | 0,8222 | 0,6806 | 0,9000 |
+| 2 | 0,8185 | 0,8000 | 0,6340 | 0,8972 |
+| 3 | 0,7888 | 0,7681 | 0,5742 | 0,8927 |
 
-A terceira repeticao reduziu a media e explica o DP maior de MCC e acuracia. O
-tempo representa os cinco ajustes da configuracao em cada repeticao, nao o
-tempo total do script.
+A Random Forest ficou abaixo de Naive Bayes e SVM no MCC médio. Nenhuma
+diferença foi significativa: NB − RF teve `p Holm = 1,0000`, Árvore − RF
+`p Holm = 0,4381` e RF − SVM `p Holm = 1,0000`. Assim, a hipótese direcional de
+superioridade da Random Forest não foi corroborada na Cleveland complementar.
+
+## Relação com a análise exploratória
+
+A avaliação antiga selecionou 500 árvores e `mtry = 4`, com MCC `0,6428`. A
+avaliação aninhada obteve `0,6354` e revelou seleção variável entre folds. A
+pequena redução é compatível com a separação entre escolha de hiperparâmetros e
+avaliação externa.
 
 ## Arquivos
 
-Os cinco CSVs oficiais ficam em `results/csvs/` e usam o prefixo
-`random_forest_cv_`. Nenhum novo RDS foi criado por este protocolo.
+Os oito CSVs começam com `random_forest_ncv_` e ficam em
+`results/cleveland_ncv_5x3_inner3_v1/csvs/`. O manifesto registra 195 ajustes.
